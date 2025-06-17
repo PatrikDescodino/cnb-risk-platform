@@ -13,6 +13,11 @@ from sklearn.metrics import accuracy_score, classification_report
 import json
 from datetime import datetime, timedelta
 import os
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 # Initialize Flask app
 app = Flask(__name__)
@@ -23,12 +28,18 @@ model_accuracy = 0
 data_stats = {}
 feature_columns = []
 
+# Constants
+VALID_TRANSACTION_TYPES = ['deposit', 'withdrawal', 'transfer', 'payment', 'card_payment']
+VALID_COUNTRIES = ['CZ', 'SK', 'DE', 'AT', 'PL', 'OFFSHORE', 'HIGH_RISK', 'OTHER']
+
 def generate_advanced_banking_data():
     """
     Generate synthetic banking transaction data with realistic risk factors
     Enhanced with AML, Fraud Detection, and Credit Risk features
     """
     n_rows = 15000  # Více dat pro lepší training
+    
+    logger.info(f"Generating {n_rows} synthetic banking transactions...")
     
     # Basic customer data
     customer_ids = np.random.randint(1000, 9999, size=n_rows)
@@ -45,7 +56,7 @@ def generate_advanced_banking_data():
     
     # Transaction types with realistic distribution
     transaction_types = np.random.choice(
-        ['deposit', 'withdrawal', 'transfer', 'payment', 'card_payment'], 
+        VALID_TRANSACTION_TYPES, 
         size=n_rows,
         p=[0.15, 0.20, 0.25, 0.25, 0.15]  # Realistické rozložení
     )
@@ -96,13 +107,13 @@ def generate_advanced_banking_data():
     account_balances = np.array(account_balances)
     
     # Geographical risk (simulace rizikových zemí)
-    countries = np.random.choice(['CZ', 'SK', 'DE', 'AT', 'PL', 'OFFSHORE', 'HIGH_RISK'], 
+    countries = np.random.choice(VALID_COUNTRIES[:-1],  # Exclude 'OTHER' from generation
                                 size=n_rows, 
                                 p=[0.70, 0.10, 0.08, 0.05, 0.04, 0.02, 0.01])
     
     country_risk_scores = {
         'CZ': 1, 'SK': 2, 'DE': 1, 'AT': 1, 'PL': 2, 
-        'OFFSHORE': 8, 'HIGH_RISK': 10
+        'OFFSHORE': 8, 'HIGH_RISK': 10, 'OTHER': 5
     }
     
     # Frequency features (kolik transakcí za posledních 7/30 dní)
@@ -131,6 +142,7 @@ def generate_advanced_banking_data():
         'is_cash_business': is_cash_business
     })
     
+    logger.info(f"Generated {len(df)} transactions successfully")
     return df
 
 def create_advanced_risk_labels(df):
@@ -205,119 +217,135 @@ def train_advanced_risk_model():
     """
     global model, model_accuracy, data_stats, feature_columns
     
-    print("🔄 Training advanced banking risk model...")
+    logger.info("Training advanced banking risk model...")
     
-    # Generate enhanced dataset
-    data = generate_advanced_banking_data()
-    data['is_risky'], data['risk_score_raw'] = create_advanced_risk_labels(data)
-    
-    # Feature Engineering
-    
-    # Časové features
-    data['is_weekend'] = pd.to_datetime(data['transaction_date']).dt.weekday >= 5
-    data['is_night_time'] = (data['transaction_hour'] <= 6) | (data['transaction_hour'] >= 22)
-    data['is_business_hours'] = (data['transaction_hour'] >= 9) & (data['transaction_hour'] <= 17)
-    
-    # Poměrové features
-    data['amount_to_income_ratio'] = data['amount'] / data['monthly_income']
-    data['amount_to_balance_ratio'] = data['amount'] / (data['account_balance'] + 1)
-    data['balance_to_income_ratio'] = data['account_balance'] / data['monthly_income']
-    data['frequency_velocity'] = data['transactions_last_7d'] / 7  # Denní průměr
-    
-    # Kategorizace částek
-    data['amount_category'] = pd.cut(data['amount'], 
-                                   bins=[0, 1000, 10000, 50000, 200000, float('inf')],
-                                   labels=['micro', 'small', 'medium', 'large', 'jumbo'])
-    
-    # Dummy variables
-    transaction_dummies = pd.get_dummies(data['transaction_type'], prefix='trans')
-    profile_dummies = pd.get_dummies(data['customer_profile'], prefix='profile')
-    amount_cat_dummies = pd.get_dummies(data['amount_category'], prefix='amount')
-    
-    # Numerical features
-    numerical_features = [
-        'amount', 'account_balance', 'monthly_income', 'customer_age', 'account_age_days',
-        'country_risk_score', 'transactions_last_7d', 'transactions_last_30d',
-        'amount_to_income_ratio', 'amount_to_balance_ratio', 'balance_to_income_ratio',
-        'frequency_velocity', 'is_cash_business', 'is_weekend', 'is_night_time', 
-        'is_business_hours', 'transaction_hour'
-    ]
-    
-    # Combine all features
-    X = pd.concat([
-        data[numerical_features],
-        transaction_dummies,
-        profile_dummies,
-        amount_cat_dummies
-    ], axis=1)
-    
-    # Store feature columns for prediction
-    feature_columns = X.columns.tolist()
-    
-    y = data['is_risky']
-    
-    # Train-test split
-    X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-    
-    # Train model with better parameters
-    model = RandomForestClassifier(
-        n_estimators=200,
-        max_depth=15,
-        min_samples_split=10,
-        min_samples_leaf=5,
-        random_state=42,
-        class_weight='balanced'  # Handle imbalanced data
-    )
-    model.fit(X_train, y_train)
-    
-    # Evaluate model
-    predictions = model.predict(X_test)
-    model_accuracy = accuracy_score(y_test, predictions)
-    
-    # Detailed evaluation
-    print("\n" + "="*60)
-    print("🏦 ADVANCED CNB RISK ASSESSMENT MODEL")
-    print("="*60)
-    print(f"✅ Model accuracy: {model_accuracy:.1%}")
-    print(f"✅ Training samples: {len(X_train):,}")
-    print(f"✅ Test samples: {len(X_test):,}")
-    print(f"✅ Features used: {len(feature_columns)}")
-    
-    # Feature importance
-    feature_importance = pd.DataFrame({
-        'feature': feature_columns,
-        'importance': model.feature_importances_
-    }).sort_values('importance', ascending=False)
-    
-    print(f"\n📊 TOP 10 RISK INDICATORS:")
-    for i, (_, row) in enumerate(feature_importance.head(10).iterrows()):
-        print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.3f}")
-    
-    # Calculate enhanced statistics
-    risky_count = int(data['is_risky'].sum())
-    safe_count = len(data) - risky_count
-    
-    data_stats = {
-        'total_transactions': len(data),
-        'risky_transactions': risky_count,
-        'safe_transactions': safe_count,
-        'risk_rate': float(risky_count / len(data)),
-        'model_accuracy': float(model_accuracy),
-        'test_samples': len(X_test),
-        'feature_count': len(feature_columns),
-        'avg_transaction_amount': float(data['amount'].mean()),
-        'avg_account_balance': float(data['account_balance'].mean()),
-        'avg_monthly_income': float(data['monthly_income'].mean()),
-        'high_risk_countries': int((data['country_risk_score'] >= 7).sum()),
-        'night_transactions': int(data['is_night_time'].sum()),
-        'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    }
-    
-    print(f"📈 Risk rate: {data_stats['risk_rate']:.1%}")
-    print(f"💰 Avg transaction: {data_stats['avg_transaction_amount']:,.0f} Kč")
-    print("🚀 Advanced risk model ready!")
-    
-    return model, model_accuracy, data_stats
+    try:
+        # Generate enhanced dataset
+        data = generate_advanced_banking_data()
+        data['is_risky'], data['risk_score_raw'] = create_advanced_risk_labels(data)
+        
+        # Feature Engineering
+        
+        # Časové features
+        data['is_weekend'] = pd.to_datetime(data['transaction_date']).dt.weekday >= 5
+        data['is_night_time'] = (data['transaction_hour'] <= 6) | (data['transaction_hour'] >= 22)
+        data['is_business_hours'] = (data['transaction_hour'] >= 9) & (data['transaction_hour'] <= 17)
+        
+        # Poměrové features
+        data['amount_to_income_ratio'] = data['amount'] / data['monthly_income']
+        data['amount_to_balance_ratio'] = data['amount'] / (data['account_balance'] + 1)
+        data['balance_to_income_ratio'] = data['account_balance'] / data['monthly_income']
+        data['frequency_velocity'] = data['transactions_last_7d'] / 7  # Denní průměr
+        
+        # Kategorizace částek
+        data['amount_category'] = pd.cut(data['amount'], 
+                                       bins=[0, 1000, 10000, 50000, 200000, float('inf')],
+                                       labels=['micro', 'small', 'medium', 'large', 'jumbo'])
+        
+        # Dummy variables with error handling
+        try:
+            transaction_dummies = pd.get_dummies(data['transaction_type'], prefix='trans')
+            profile_dummies = pd.get_dummies(data['customer_profile'], prefix='profile')
+            amount_cat_dummies = pd.get_dummies(data['amount_category'], prefix='amount')
+        except Exception as e:
+            logger.error(f"Error creating dummy variables: {e}")
+            raise
+        
+        # Numerical features
+        numerical_features = [
+            'amount', 'account_balance', 'monthly_income', 'customer_age', 'account_age_days',
+            'country_risk_score', 'transactions_last_7d', 'transactions_last_30d',
+            'amount_to_income_ratio', 'amount_to_balance_ratio', 'balance_to_income_ratio',
+            'frequency_velocity', 'is_cash_business', 'is_weekend', 'is_night_time', 
+            'is_business_hours', 'transaction_hour'
+        ]
+        
+        # Combine all features
+        X = pd.concat([
+            data[numerical_features],
+            transaction_dummies,
+            profile_dummies,
+            amount_cat_dummies
+        ], axis=1)
+        
+        # Store feature columns for prediction
+        feature_columns = X.columns.tolist()
+        
+        y = data['is_risky']
+        
+        # Validate data quality
+        if X.isnull().any().any():
+            logger.warning("NaN values detected in features, filling with 0")
+            X = X.fillna(0)
+        
+        # Train-test split
+        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
+        
+        # Train model with better parameters
+        model = RandomForestClassifier(
+            n_estimators=200,
+            max_depth=15,
+            min_samples_split=10,
+            min_samples_leaf=5,
+            random_state=42,
+            class_weight='balanced',  # Handle imbalanced data
+            n_jobs=-1  # Use all available cores
+        )
+        model.fit(X_train, y_train)
+        
+        # Evaluate model
+        predictions = model.predict(X_test)
+        model_accuracy = accuracy_score(y_test, predictions)
+        
+        # Detailed evaluation
+        print("\n" + "="*60)
+        print("🏦 ADVANCED CNB RISK ASSESSMENT MODEL")
+        print("="*60)
+        print(f"✅ Model accuracy: {model_accuracy:.1%}")
+        print(f"✅ Training samples: {len(X_train):,}")
+        print(f"✅ Test samples: {len(X_test):,}")
+        print(f"✅ Features used: {len(feature_columns)}")
+        
+        # Feature importance
+        feature_importance = pd.DataFrame({
+            'feature': feature_columns,
+            'importance': model.feature_importances_
+        }).sort_values('importance', ascending=False)
+        
+        print(f"\n📊 TOP 10 RISK INDICATORS:")
+        for i, (_, row) in enumerate(feature_importance.head(10).iterrows()):
+            print(f"{i+1:2d}. {row['feature']:<25} {row['importance']:.3f}")
+        
+        # Calculate enhanced statistics
+        risky_count = int(data['is_risky'].sum())
+        safe_count = len(data) - risky_count
+        
+        data_stats = {
+            'total_transactions': len(data),
+            'risky_transactions': risky_count,
+            'safe_transactions': safe_count,
+            'risk_rate': float(risky_count / len(data)),
+            'model_accuracy': float(model_accuracy),
+            'test_samples': len(X_test),
+            'feature_count': len(feature_columns),
+            'avg_transaction_amount': float(data['amount'].mean()),
+            'avg_account_balance': float(data['account_balance'].mean()),
+            'avg_monthly_income': float(data['monthly_income'].mean()),
+            'high_risk_countries': int((data['country_risk_score'] >= 7).sum()),
+            'night_transactions': int(data['is_night_time'].sum()),
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        print(f"📈 Risk rate: {data_stats['risk_rate']:.1%}")
+        print(f"💰 Avg transaction: {data_stats['avg_transaction_amount']:,.0f} Kč")
+        print("🚀 Advanced risk model ready!")
+        
+        logger.info("Model training completed successfully")
+        return model, model_accuracy, data_stats
+        
+    except Exception as e:
+        logger.error(f"Error training model: {e}")
+        raise
 
 def predict_advanced_transaction_risk(amount, account_balance, transaction_type, 
                                     monthly_income=50000, customer_age=35, 
@@ -329,158 +357,178 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
     global model, feature_columns
     
     if model is None:
+        logger.error("Model not trained - cannot make prediction")
         return {'error': 'Model not trained'}
     
-    # Country risk mapping
-    country_risk_map = {
-        'CZ': 1, 'SK': 2, 'DE': 1, 'AT': 1, 'PL': 2, 
-        'OFFSHORE': 8, 'HIGH_RISK': 10, 'OTHER': 5
-    }
-    country_risk_score = country_risk_map.get(country, 5)
-    
-    # Derived features
-    amount_to_income_ratio = amount / monthly_income
-    amount_to_balance_ratio = amount / (account_balance + 1)
-    balance_to_income_ratio = account_balance / monthly_income
-    
-    # Time features
-    is_weekend = 0  # Simplified for demo
-    is_night_time = 1 if (transaction_hour <= 6 or transaction_hour >= 22) else 0
-    is_business_hours = 1 if (9 <= transaction_hour <= 17) else 0
-    
-    # Estimate frequency (simplified)
-    transactions_last_7d = 3  # Default assumption
-    transactions_last_30d = 12
-    frequency_velocity = transactions_last_7d / 7
-    
-    # Amount category
-    if amount <= 1000:
-        amount_cat = 'micro'
-    elif amount <= 10000:
-        amount_cat = 'small'
-    elif amount <= 50000:
-        amount_cat = 'medium'
-    elif amount <= 200000:
-        amount_cat = 'large'
-    else:
-        amount_cat = 'jumbo'
-    
-    # Customer profile estimation based on income
-    if monthly_income < 30000:
-        customer_profile = 'low_income'
-    elif monthly_income < 70000:
-        customer_profile = 'middle_income'
-    elif monthly_income < 150000:
-        customer_profile = 'high_income'
-    else:
-        customer_profile = 'business'
-    
-    # Create feature vector matching training data
-    feature_dict = {}
-    
-    # Numerical features
-    numerical_values = {
-        'amount': amount,
-        'account_balance': account_balance,
-        'monthly_income': monthly_income,
-        'customer_age': customer_age,
-        'account_age_days': account_age_days,
-        'country_risk_score': country_risk_score,
-        'transactions_last_7d': transactions_last_7d,
-        'transactions_last_30d': transactions_last_30d,
-        'amount_to_income_ratio': amount_to_income_ratio,
-        'amount_to_balance_ratio': amount_to_balance_ratio,
-        'balance_to_income_ratio': balance_to_income_ratio,
-        'frequency_velocity': frequency_velocity,
-        'is_cash_business': is_cash_business,
-        'is_weekend': is_weekend,
-        'is_night_time': is_night_time,
-        'is_business_hours': is_business_hours,
-        'transaction_hour': transaction_hour
-    }
-    
-    # Initialize all features to 0
-    for col in feature_columns:
-        feature_dict[col] = 0
-    
-    # Set numerical features
-    for key, value in numerical_values.items():
-        if key in feature_dict:
-            feature_dict[key] = value
-    
-    # Set dummy variables
-    trans_col = f'trans_{transaction_type}'
-    if trans_col in feature_dict:
-        feature_dict[trans_col] = 1
-    
-    profile_col = f'profile_{customer_profile}'
-    if profile_col in feature_dict:
-        feature_dict[profile_col] = 1
+    try:
+        # Country risk mapping with validation
+        country_risk_map = {
+            'CZ': 1, 'SK': 2, 'DE': 1, 'AT': 1, 'PL': 2, 
+            'OFFSHORE': 8, 'HIGH_RISK': 10, 'OTHER': 5
+        }
+        country_risk_score = country_risk_map.get(country, 5)
         
-    amount_col = f'amount_{amount_cat}'
-    if amount_col in feature_dict:
-        feature_dict[amount_col] = 1
-    
-    # Create feature array
-    features = np.array([[feature_dict[col] for col in feature_columns]])
-    
-    # Predict
-    risk_probability = model.predict_proba(features)[0][1]
-    risk_prediction = model.predict(features)[0]
-    
-    # Enhanced risk level classification
-    if risk_probability >= 0.8:
-        risk_level = 'CRITICAL'
-    elif risk_probability >= 0.6:
-        risk_level = 'HIGH'
-    elif risk_probability >= 0.4:
-        risk_level = 'MEDIUM'
-    elif risk_probability >= 0.2:
-        risk_level = 'LOW'
-    else:
-        risk_level = 'MINIMAL'
-    
-    # Risk factors explanation
-    risk_factors = []
-    if amount_to_income_ratio > 0.5:
-        risk_factors.append(f"Vysoká částka vs. příjem ({amount_to_income_ratio:.1%})")
-    if country_risk_score >= 7:
-        risk_factors.append(f"Riziková země ({country})")
-    if is_night_time:
-        risk_factors.append("Noční transakce")
-    if account_age_days < 90:
-        risk_factors.append("Nový účet")
-    if amount_to_balance_ratio > 0.8:
-        risk_factors.append("Vysoký poměr k zůstatku")
-    
-    return {
-        'risk_score': float(risk_probability),
-        'is_risky': bool(risk_prediction),
-        'risk_level': risk_level,
-        'risk_factors': risk_factors,
-        'explanation': f"Model identifikoval {len(risk_factors)} rizikových faktorů" if risk_factors else "Transakce vyhodnocena jako standardní"
-    }
+        # Derived features with safe division
+        amount_to_income_ratio = amount / max(monthly_income, 1)
+        amount_to_balance_ratio = amount / max(account_balance + 1, 1)
+        balance_to_income_ratio = account_balance / max(monthly_income, 1)
+        
+        # Time features
+        is_weekend = 0  # Simplified for demo
+        is_night_time = 1 if (transaction_hour <= 6 or transaction_hour >= 22) else 0
+        is_business_hours = 1 if (9 <= transaction_hour <= 17) else 0
+        
+        # Estimate frequency (simplified)
+        transactions_last_7d = 3  # Default assumption
+        transactions_last_30d = 12
+        frequency_velocity = transactions_last_7d / 7
+        
+        # Amount category
+        if amount <= 1000:
+            amount_cat = 'micro'
+        elif amount <= 10000:
+            amount_cat = 'small'
+        elif amount <= 50000:
+            amount_cat = 'medium'
+        elif amount <= 200000:
+            amount_cat = 'large'
+        else:
+            amount_cat = 'jumbo'
+        
+        # Customer profile estimation based on income
+        if monthly_income < 30000:
+            customer_profile = 'low_income'
+        elif monthly_income < 70000:
+            customer_profile = 'middle_income'
+        elif monthly_income < 150000:
+            customer_profile = 'high_income'
+        else:
+            customer_profile = 'business'
+        
+        # Create feature vector matching training data
+        feature_dict = {}
+        
+        # Numerical features
+        numerical_values = {
+            'amount': amount,
+            'account_balance': account_balance,
+            'monthly_income': monthly_income,
+            'customer_age': customer_age,
+            'account_age_days': account_age_days,
+            'country_risk_score': country_risk_score,
+            'transactions_last_7d': transactions_last_7d,
+            'transactions_last_30d': transactions_last_30d,
+            'amount_to_income_ratio': amount_to_income_ratio,
+            'amount_to_balance_ratio': amount_to_balance_ratio,
+            'balance_to_income_ratio': balance_to_income_ratio,
+            'frequency_velocity': frequency_velocity,
+            'is_cash_business': is_cash_business,
+            'is_weekend': is_weekend,
+            'is_night_time': is_night_time,
+            'is_business_hours': is_business_hours,
+            'transaction_hour': transaction_hour
+        }
+        
+        # Initialize all features to 0
+        for col in feature_columns:
+            feature_dict[col] = 0
+        
+        # Set numerical features
+        for key, value in numerical_values.items():
+            if key in feature_dict:
+                feature_dict[key] = value
+        
+        # Set dummy variables with validation
+        trans_col = f'trans_{transaction_type}'
+        if trans_col in feature_dict:
+            feature_dict[trans_col] = 1
+        
+        profile_col = f'profile_{customer_profile}'
+        if profile_col in feature_dict:
+            feature_dict[profile_col] = 1
+            
+        amount_col = f'amount_{amount_cat}'
+        if amount_col in feature_dict:
+            feature_dict[amount_col] = 1
+        
+        # Create feature array
+        features = np.array([[feature_dict[col] for col in feature_columns]])
+        
+        # Predict
+        risk_probability = model.predict_proba(features)[0][1]
+        risk_prediction = model.predict(features)[0]
+        
+        # Enhanced risk level classification
+        if risk_probability >= 0.8:
+            risk_level = 'CRITICAL'
+        elif risk_probability >= 0.6:
+            risk_level = 'HIGH'
+        elif risk_probability >= 0.4:
+            risk_level = 'MEDIUM'
+        elif risk_probability >= 0.2:
+            risk_level = 'LOW'
+        else:
+            risk_level = 'MINIMAL'
+        
+        # Risk factors explanation
+        risk_factors = []
+        if amount_to_income_ratio > 0.5:
+            risk_factors.append(f"Vysoká částka vs. příjem ({amount_to_income_ratio:.1%})")
+        if country_risk_score >= 7:
+            risk_factors.append(f"Riziková země ({country})")
+        if is_night_time:
+            risk_factors.append("Noční transakce")
+        if account_age_days < 90:
+            risk_factors.append("Nový účet")
+        if amount_to_balance_ratio > 0.8:
+            risk_factors.append("Vysoký poměr k zůstatku")
+        
+        result = {
+            'risk_score': float(risk_probability),
+            'is_risky': bool(risk_prediction),
+            'risk_level': risk_level,
+            'risk_factors': risk_factors,
+            'explanation': f"Model identifikoval {len(risk_factors)} rizikových faktorů" if risk_factors else "Transakce vyhodnocena jako standardní"
+        }
+        
+        logger.info(f"Prediction completed: Risk score {risk_probability:.3f}, Level: {risk_level}")
+        return result
+        
+    except Exception as e:
+        logger.error(f"Error making prediction: {e}")
+        return {'error': f'Prediction error: {str(e)}'}
 
-# Flask routes remain the same, but update the prediction endpoint
+# Flask routes with improved error handling
 @app.route('/')
 def dashboard():
-    return render_template('dashboard.html', stats=data_stats)
+    try:
+        return render_template('dashboard.html', stats=data_stats)
+    except Exception as e:
+        logger.error(f"Error rendering dashboard: {e}")
+        return jsonify({'error': 'Dashboard unavailable'}), 500
 
 @app.route('/api/stats')
 def get_stats():
-    return jsonify(data_stats)
+    try:
+        return jsonify(data_stats)
+    except Exception as e:
+        logger.error(f"Error getting stats: {e}")
+        return jsonify({'error': 'Stats unavailable'}), 500
 
 @app.route('/api/predict', methods=['POST'])
 def predict_risk():
     try:
         data = request.get_json()
         
-        # Basic required fields
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+        
+        # Basic required fields with validation
         amount = float(data.get('amount', 0))
         account_balance = float(data.get('account_balance', 0))
         transaction_type = data.get('transaction_type', 'transfer')
         
-        # Advanced optional fields
+        # Advanced optional fields with defaults
         monthly_income = float(data.get('monthly_income', 50000))
         customer_age = int(data.get('customer_age', 35))
         account_age_days = int(data.get('account_age_days', 365))
@@ -488,13 +536,21 @@ def predict_risk():
         transaction_hour = int(data.get('transaction_hour', 12))
         is_cash_business = int(data.get('is_cash_business', 0))
         
-        # Validation
+        # Enhanced validation
         if amount <= 0:
             return jsonify({'error': 'Amount must be positive'}), 400
+        if amount > 10000000:  # 10M limit
+            return jsonify({'error': 'Amount too large'}), 400
         if account_balance < 0:
             return jsonify({'error': 'Account balance cannot be negative'}), 400
-        if transaction_type not in ['deposit', 'withdrawal', 'transfer', 'payment', 'card_payment']:
-            return jsonify({'error': 'Invalid transaction type'}), 400
+        if transaction_type not in VALID_TRANSACTION_TYPES:
+            return jsonify({'error': f'Invalid transaction type. Valid types: {VALID_TRANSACTION_TYPES}'}), 400
+        if country not in VALID_COUNTRIES:
+            return jsonify({'error': f'Invalid country. Valid countries: {VALID_COUNTRIES}'}), 400
+        if not (0 <= transaction_hour <= 23):
+            return jsonify({'error': 'Transaction hour must be between 0 and 23'}), 400
+        if not (18 <= customer_age <= 120):
+            return jsonify({'error': 'Customer age must be between 18 and 120'}), 400
         
         result = predict_advanced_transaction_risk(
             amount=amount,
@@ -510,12 +566,16 @@ def predict_risk():
         
         return jsonify(result)
         
+    except ValueError as e:
+        return jsonify({'error': f'Invalid input: {str(e)}'}), 400
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error in prediction endpoint: {e}")
+        return jsonify({'error': 'Internal server error'}), 500
 
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     try:
+        logger.info("Retraining model requested")
         train_advanced_risk_model()
         return jsonify({
             'message': 'Advanced model retrained successfully',
@@ -524,24 +584,68 @@ def retrain_model():
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f"Error retraining model: {e}")
+        return jsonify({'error': f'Retraining failed: {str(e)}'}), 500
 
 @app.route('/health')
 def health_check():
-    return jsonify({
-        'status': 'healthy',
-        'model_loaded': model is not None,
-        'model_type': 'Advanced Banking Risk Model',
-        'features': len(feature_columns) if feature_columns else 0,
-        'timestamp': datetime.now().isoformat()
-    })
+    try:
+        return jsonify({
+            'status': 'healthy',
+            'model_loaded': model is not None,
+            'model_type': 'Advanced Banking Risk Model',
+            'features': len(feature_columns) if feature_columns else 0,
+            'accuracy': float(model_accuracy) if model_accuracy else None,
+            'timestamp': datetime.now().isoformat(),
+            'version': '2.0.0'
+        })
+    except Exception as e:
+        logger.error(f"Error in health check: {e}")
+        return jsonify({
+            'status': 'unhealthy',
+            'error': str(e),
+            'timestamp': datetime.now().isoformat()
+        }), 500
+
+@app.errorhandler(404)
+def not_found(error):
+    return jsonify({'error': 'Endpoint not found'}), 404
+
+@app.errorhandler(500)
+def internal_error(error):
+    logger.error(f"Internal server error: {error}")
+    return jsonify({'error': 'Internal server error'}), 500
+
+@app.errorhandler(400)
+def bad_request(error):
+    return jsonify({'error': 'Bad request'}), 400
 
 def initialize_app():
-    print("🏦 Initializing Advanced CNB Risk Platform...")
-    train_advanced_risk_model()
-    print("✅ Advanced banking risk model ready!")
+    """Initialize the application with proper error handling"""
+    try:
+        logger.info("🏦 Initializing Advanced CNB Risk Platform...")
+        train_advanced_risk_model()
+        logger.info("✅ Advanced banking risk model ready!")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        return False
 
 if __name__ == '__main__':
-    initialize_app()
+    # Initialize app
+    if not initialize_app():
+        logger.error("Application initialization failed. Exiting.")
+        exit(1)
+    
+    # Get configuration from environment
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug = os.environ.get('FLASK_ENV') == 'development'
+    host = os.environ.get('HOST', '0.0.0.0')
+    
+    logger.info(f"Starting server on {host}:{port} (debug={debug})")
+    
+    try:
+        app.run(host=host, port=port, debug=debug)
+    except Exception as e:
+        logger.error(f"Failed to start server: {e}")
+        exit(1)
