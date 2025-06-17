@@ -335,34 +335,6 @@ cnb-risk-platform/
 
 ---
 
-## 📈 Business Impact
-
-### Pro České národní banka
-
-#### Operative Benefits
-- ⚡ **Rychlejší rozhodování** - Real-time risk assessment
-- 🎯 **Vyšší přesnost** - ML model vs. manuální hodnocení
-- 💰 **Úspora nákladů** - Automatizace rizikových procesů
-- 📊 **Data-driven insights** - Lepší understanding rizikových vzorců
-
-#### Strategic Value
-- 🔮 **Prediktivní analýza** - Proaktivní risk management
-- 📈 **Scalabilita** - Zpracování velkých objemů transakcí
-- 🔄 **Continuous improvement** - Model se učí z nových dat
-- 🌐 **Digital transformation** - Modernizace bankovních procesů
-
-#### ROI Kalkulace
-```
-Roční úspory:
-- Automatizace procesů:     500+ hodin/rok
-- Snížení false positives:  30% úspora času
-- Rychlejší detekce:        15% snížení ztrát
-- Compliance automation:    200+ hodin/rok
-
-Celkový ROI: 300%+ za první rok
-```
-
----
 
 ## 👥 Team & Contact
 
@@ -371,8 +343,8 @@ Celkový ROI: 300%+ za první rok
 ### Author
 - **Patrik** - Full-stack developer & ML Engineer
 - 📧 Email: [patrik@descodino.studio](mailto:patrik@descodino.studio)
-- 💼 LinkedIn: [linkedin.com/in/patrik-descodino](https://linkedin.com/in/patrik-descodino)
-- 🐙 GitHub: [github.com/patrik-descodino](https://github.com/patrik-descodino)
+- 💼 LinkedIn: [linkedin.com/in/patrik-schick-674438128](https://www.linkedin.com/in/patrik-schick-674438128/
+- 🐙 GitHub: [github.com/patrikDescodino](https://github.com/patrikDescodino)
 
 ### Technology Stack Expertise
 - **Backend**: Python, Flask, FastAPI, Django
@@ -381,13 +353,6 @@ Celkový ROI: 300%+ za první rok
 - **Database**: PostgreSQL, MongoDB, Redis
 - **DevOps**: Docker, Kubernetes, CI/CD
 
----
-
-## 📜 License
-
-This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
----
 
 ## 🤝 Contributing
 
@@ -408,9 +373,3 @@ Contributions are welcome! Please feel free to submit a Pull Request.
 - **Open Source Community** - Amazing tools and libraries
 - **Banking Industry** - Domain knowledge and best practices
 
----
-
-<p align="center">
-  <strong>Vytvořeno s ❤️ pro ČNB Technology Challenge</strong><br>
-  <sub>Banking-grade security • Enterprise scalability • Modern architecture</sub>
-</p>
