@@ -1,5 +1,6 @@
 /* ==========================================
-   CNB Risk Platform - Modern Banking Design
+   CNB Risk Platform - Advanced Banking Design
+   Enhanced for Advanced Risk Assessment Features
    ========================================== */
 
 :root {
@@ -9,10 +10,12 @@
     --cnb-accent: #0ea5e9;
     --cnb-gold: #f59e0b;
     
-    /* Risk Colors */
+    /* Enhanced Risk Colors */
+    --risk-critical: #7f1d1d;
     --risk-high: #dc2626;
     --risk-medium: #ea580c;
     --risk-low: #16a34a;
+    --risk-minimal: #059669;
     
     /* Neutral Colors */
     --gray-50: #f8fafc;
@@ -271,7 +274,7 @@ body {
 }
 
 /* ==========================================
-   Risk Calculator
+   Advanced Form Sections
    ========================================== */
 
 .risk-calculator {
@@ -279,11 +282,35 @@ body {
     background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
 }
 
+.toggle-container {
+    display: flex;
+    gap: 1rem;
+}
+
+.form-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    background: rgba(255, 255, 255, 0.5);
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+}
+
+.section-title {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--cnb-primary);
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--gray-200);
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
 .form-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
     gap: 1.5rem;
-    margin-bottom: 2rem;
 }
 
 .form-group {
@@ -321,8 +348,15 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.form-hint {
+    font-size: 0.85rem;
+    color: var(--gray-500);
+    margin-top: 0.5rem;
+    font-style: italic;
+}
+
 /* ==========================================
-   Button
+   Buttons
    ========================================== */
 
 .btn {
@@ -367,8 +401,34 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+.btn-secondary {
+    background: linear-gradient(135deg, var(--gray-600) 0%, var(--gray-700) 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition-normal);
+    box-shadow: var(--shadow-sm);
+}
+
+.btn-secondary:hover {
+    transform: translateY(-1px);
+    box-shadow: var(--shadow-md);
+    background: linear-gradient(135deg, var(--gray-700) 0%, var(--gray-800) 100%);
+}
+
+.form-actions {
+    display: flex;
+    gap: 1rem;
+    margin-top: 2rem;
+    flex-wrap: wrap;
+}
+
 /* ==========================================
-   Risk Results
+   Enhanced Risk Results
    ========================================== */
 
 .risk-result {
@@ -393,6 +453,12 @@ body {
     }
 }
 
+.risk-critical {
+    background: linear-gradient(135deg, rgba(127, 29, 29, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
+    border: 3px solid var(--risk-critical);
+    color: var(--risk-critical);
+}
+
 .risk-high {
     background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
     border: 2px solid var(--risk-high);
@@ -409,6 +475,12 @@ body {
     background: linear-gradient(135deg, rgba(22, 163, 74, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
     border: 2px solid var(--risk-low);
     color: var(--risk-low);
+}
+
+.risk-minimal {
+    background: linear-gradient(135deg, rgba(5, 150, 105, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+    border: 2px solid var(--risk-minimal);
+    color: var(--risk-minimal);
 }
 
 .risk-score-container {
@@ -430,9 +502,100 @@ body {
 }
 
 .risk-details {
+    text-align: left;
+    margin-top: 1.5rem;
+}
+
+.risk-explanation {
+    font-size: 1.1rem;
+    font-weight: 500;
+    margin-bottom: 1rem;
+    padding: 1rem;
+    background: rgba(255, 255, 255, 0.3);
+    border-radius: 8px;
+}
+
+.risk-factors {
+    margin-top: 1rem;
+}
+
+.risk-factors h5 {
     font-size: 1rem;
-    line-height: 1.6;
-    opacity: 0.9;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    color: inherit;
+}
+
+.risk-factors ul {
+    list-style: none;
+    padding: 0;
+}
+
+.risk-factors li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.risk-factors li:last-child {
+    border-bottom: none;
+}
+
+.risk-factors li::before {
+    content: '▶';
+    position: absolute;
+    left: 0;
+    color: currentColor;
+    font-size: 0.8rem;
+}
+
+/* ==========================================
+   Risk Guidelines
+   ========================================== */
+
+.risk-guidelines {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+}
+
+.guideline-section {
+    padding: 1.5rem;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 250, 252, 0.8) 100%);
+    border-radius: 12px;
+    border: 1px solid var(--gray-200);
+}
+
+.guideline-section h5 {
+    font-size: 1rem;
+    font-weight: 600;
+    color: var(--cnb-primary);
+    margin-bottom: 1rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 1px solid var(--gray-200);
+}
+
+.guideline-section ul {
+    list-style: none;
+    padding: 0;
+}
+
+.guideline-section li {
+    padding: 0.5rem 0;
+    padding-left: 1.5rem;
+    position: relative;
+    color: var(--gray-700);
+    font-size: 0.9rem;
+    line-height: 1.5;
+}
+
+.guideline-section li::before {
+    content: '•';
+    position: absolute;
+    left: 0;
+    color: var(--cnb-secondary);
+    font-weight: bold;
 }
 
 /* ==========================================
@@ -498,8 +661,69 @@ body {
 }
 
 /* ==========================================
-   Responsive Design
+   Advanced Form Animations
    ========================================== */
+
+.form-section {
+    opacity: 0;
+    animation: fadeInUp 0.5s ease-out forwards;
+}
+
+.form-section:nth-child(1) { animation-delay: 0.1s; }
+.form-section:nth-child(2) { animation-delay: 0.2s; }
+.form-section:nth-child(3) { animation-delay: 0.3s; }
+
+@keyframes fadeInUp {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+/* ==========================================
+   Form Validation States
+   ========================================== */
+
+.form-input:invalid {
+    border-color: var(--risk-high);
+    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+}
+
+.form-input:valid {
+    border-color: var(--risk-low);
+}
+
+.form-group.error .form-input {
+    border-color: var(--risk-high);
+    background-color: rgba(220, 38, 38, 0.05);
+}
+
+.form-group.success .form-input {
+    border-color: var(--risk-low);
+    background-color: rgba(22, 163, 74, 0.05);
+}
+
+/* ==========================================
+   Enhanced Responsive Design
+   ========================================== */
+
+@media (max-width: 1024px) {
+    .dashboard-grid {
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    }
+    
+    .form-grid {
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    }
+    
+    .risk-guidelines {
+        grid-template-columns: 1fr;
+    }
+}
 
 @media (max-width: 768px) {
     .container {
@@ -527,6 +751,10 @@ body {
         padding: 1.5rem;
     }
     
+    .form-section {
+        padding: 1rem;
+    }
+    
     .stat-value {
         font-size: 2rem;
     }
@@ -536,7 +764,15 @@ body {
     }
     
     .risk-score {
-        font-size: 2rem;
+        font-size: 2.5rem;
+    }
+    
+    .form-actions {
+        flex-direction: column;
+    }
+    
+    .toggle-container {
+        justify-content: center;
     }
 }
 
@@ -558,10 +794,18 @@ body {
     .form-input, .form-select, .btn {
         padding: 0.875rem;
     }
+    
+    .risk-score {
+        font-size: 2rem;
+    }
+    
+    .section-title {
+        font-size: 1rem;
+    }
 }
 
 /* ==========================================
-   Dark Mode Support (Optional)
+   Dark Mode Support
    ========================================== */
 
 @media (prefers-color-scheme: dark) {
@@ -569,6 +813,7 @@ body {
         --gray-50: #0f172a;
         --gray-100: #1e293b;
         --gray-200: #334155;
+        --gray-300: #475569;
         --gray-700: #cbd5e1;
         --gray-800: #e2e8f0;
         --gray-900: #f1f5f9;
@@ -583,10 +828,20 @@ body {
         border-color: rgba(51, 65, 85, 0.3);
     }
     
+    .form-section {
+        background: rgba(51, 65, 85, 0.3);
+        border-color: rgba(71, 85, 105, 0.3);
+    }
+    
     .form-input, .form-select {
         background: var(--gray-100);
         border-color: var(--gray-200);
         color: var(--gray-800);
+    }
+    
+    .guideline-section {
+        background: rgba(51, 65, 85, 0.5);
+        border-color: rgba(71, 85, 105, 0.3);
     }
 }
 
@@ -606,13 +861,11 @@ body {
     border: 0;
 }
 
-/* Focus styles for keyboard navigation */
 *:focus-visible {
     outline: 2px solid var(--cnb-secondary);
     outline-offset: 2px;
 }
 
-/* High contrast mode support */
 @media (prefers-contrast: high) {
     .card {
         border-width: 2px;
@@ -621,9 +874,12 @@ body {
     .btn {
         border: 2px solid var(--cnb-primary);
     }
+    
+    .form-input, .form-select {
+        border-width: 2px;
+    }
 }
 
-/* Reduce motion for users who prefer it */
 @media (prefers-reduced-motion: reduce) {
     *,
     *::before,
@@ -631,5 +887,36 @@ body {
         animation-duration: 0.01ms !important;
         animation-iteration-count: 1 !important;
         transition-duration: 0.01ms !important;
+    }
+}
+
+/* ==========================================
+   Print Styles
+   ========================================== */
+
+@media print {
+    body {
+        background: white;
+        color: black;
+    }
+    
+    .header {
+        background: var(--cnb-primary);
+        color: white;
+    }
+    
+    .card {
+        background: white;
+        border: 1px solid #ccc;
+        box-shadow: none;
+        page-break-inside: avoid;
+    }
+    
+    .btn {
+        display: none;
+    }
+    
+    .loading-indicator {
+        display: none;
     }
 }
