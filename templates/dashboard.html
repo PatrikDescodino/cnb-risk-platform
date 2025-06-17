@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ČNB Risk Management Platform</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <!-- Header -->
+    <header class="header">
+        <div class="header-content">
+            <div class="logo">
+                <div>
+                    <h1>🏦 ČNB Risk Platform</h1>
+                    <div class="subtitle">Pokročilá analýza bankovních rizik</div>
+                </div>
+            </div>
+            <div class="status-indicator">
+                <div class="status-dot"></div>
+                <span>Model Active</span>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Container -->
+    <div class="container">
+        
+        <!-- Statistics Dashboard -->
+        <div class="dashboard-grid">
+            
+            <!-- Model Accuracy Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Model Accuracy</h3>
+                    <div class="card-icon accuracy-icon">📊</div>
+                </div>
+                <div class="stat-value accuracy-value">
+                    {% if stats.model_accuracy %}
+                        {{ "%.1f"|format(stats.model_accuracy * 100) }}%
+                    {% else %}
+                        ---%
+                    {% endif %}
+                </div>
+                <div class="stat-label">Přesnost klasifikace</div>
+            </div>
+
+            <!-- Total Transactions Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Celkem transakcí</h3>
+                    <div class="card-icon transactions-icon">💳</div>
+                </div>
+                <div class="stat-value transactions-value">
+                    {% if stats.total_transactions %}
+                        {{ "{:,}".format(stats.total_transactions).replace(',', ' ') }}
+                    {% else %}
+                        ---
+                    {% endif %}
+                </div>
+                <div class="stat-label">Analyzovaných transakcí</div>
+            </div>
+
+            <!-- Risk Transactions Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Rizikové transakce</h3>
+                    <div class="card-icon risk-icon">⚠️</div>
+                </div>
+                <div class="stat-value risk-value">
+                    {% if stats.risky_transactions %}
+                        {{ "{:,}".format(stats.risky_transactions).replace(',', ' ') }}
+                    {% else %}
+                        ---
+                    {% endif %}
+                </div>
+                <div class="stat-label">
+                    {% if stats.total_transactions and stats.risky_transactions %}
+                        ({{ "%.1f"|format((stats.risky_transactions / stats.total_transactions) * 100) }}% z celku)
+                    {% endif %}
+                </div>
+            </div>
+
+            <!-- Average Amount Card -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">Průměrná částka</h3>
+                    <div class="card-icon amount-icon">💰</div>
+                </div>
+                <div class="stat-value amount-value">
+                    {% if stats.avg_transaction_amount %}
+                        {{ "{:,.0f}".format(stats.avg_transaction_amount).replace(',', ' ') }} Kč
+                    {% else %}
+                        --- Kč
+                    {% endif %}
+                </div>
+                <div class="stat-label">Průměrná výše transakce</div>
+            </div>
+
+        </div>
+
+        <!-- Risk Calculator -->
+        <div class="card risk-calculator">
+            <div class="card-header">
+                <h3 class="card-title">🔍 Analýza rizika transakce</h3>
+            </div>
+            
+            <form id="riskForm">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="amount" class="form-label">Částka transakce (Kč)</label>
+                        <input type="number" id="amount" name="amount" class="form-input" 
+                               placeholder="Např. 50000" min="1" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="balance" class="form-label">Zůstatek na účtu (Kč)</label>
+                        <input type="number" id="balance" name="balance" class="form-input" 
+                               placeholder="Např. 25000" min="0" required>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="transactionType" class="form-label">Typ transakce</label>
+                        <select id="transactionType" name="transactionType" class="form-select" required>
+                            <option value="">Vyberte typ</option>
+                            <option value="deposit">Vklad</option>
+                            <option value="withdrawal">Výběr</option>
+                            <option value="transfer">Převod</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label class="form-label">&nbsp;</label>
+                        <button type="submit" class="btn">Analyzovat riziko</button>
+                    </div>
+                </div>
+            </form>
+
+            <!-- Risk Result -->
+            <div id="riskResult" class="risk-result">
+                <div class="risk-score-container">
+                    <div class="risk-score" id="riskScore">---%</div>
+                    <div class="risk-level" id="riskLevel">---</div>
+                </div>
+                <div class="risk-details" id="riskDetails">
+                    Výsledek analýzy se zobrazí zde
+                </div>
+            </div>
+
+            <!-- Loading Indicator -->
+            <div id="loadingIndicator" class="loading-indicator" style="display: none;">
+                <div class="spinner"></div>
+                <span>Analyzuji riziko...</span>
+            </div>
+        </div>
+
+        <!-- System Information -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">ℹ️ Systémové informace</h3>
+            </div>
+            <div class="system-info">
+                <div class="info-row">
+                    <span class="info-label">Poslední aktualizace:</span>
+                    <span class="info-value">
+                        {% if stats.last_updated %}
+                            {{ stats.last_updated }}
+                        {% else %}
+                            Neznámá
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Testovací vzorek:</span>
+                    <span class="info-value">
+                        {% if stats.test_samples %}
+                            {{ "{:,}".format(stats.test_samples).replace(',', ' ') }} transakcí
+                        {% else %}
+                            --- transakcí
+                        {% endif %}
+                    </span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Průměrný zůstatek:</span>
+                    <span class="info-value">
+                        {% if stats.avg_account_balance %}
+                            {{ "{:,.0f}".format(stats.avg_account_balance).replace(',', ' ') }} Kč
+                        {% else %}
+                            --- Kč
+                        {% endif %}
+                    </span>
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <!-- JavaScript -->
+    <script>
+        // Risk Analysis Form Handler
+        document.getElementById('riskForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            // Get form data
+            const amount = document.getElementById('amount').value;
+            const balance = document.getElementById('balance').value;
+            const transactionType = document.getElementById('transactionType').value;
+            
+            // Show loading
+            document.getElementById('loadingIndicator').style.display = 'flex';
+            document.getElementById('riskResult').style.display = 'none';
+            
+            try {
+                // Send request to API
+                const response = await fetch('/api/predict', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        amount: parseFloat(amount),
+                        account_balance: parseFloat(balance),
+                        transaction_type: transactionType
+                    })
+                });
+                
+                const result = await response.json();
+                
+                // Hide loading
+                document.getElementById('loadingIndicator').style.display = 'none';
+                
+                if (result.error) {
+                    alert('Chyba: ' + result.error);
+                    return;
+                }
+                
+                // Display result
+                displayRiskResult(result);
+                
+            } catch (error) {
+                document.getElementById('loadingIndicator').style.display = 'none';
+                alert('Chyba při komunikaci se serverem: ' + error.message);
+            }
+        });
+        
+        function displayRiskResult(result) {
+            const riskResult = document.getElementById('riskResult');
+            const riskScore = document.getElementById('riskScore');
+            const riskLevel = document.getElementById('riskLevel');
+            const riskDetails = document.getElementById('riskDetails');
+            
+            // Update values
+            riskScore.textContent = (result.risk_score * 100).toFixed(1) + '%';
+            riskLevel.textContent = getRiskLevelText(result.risk_level);
+            
+            // Update details
+            const riskText = result.is_risky ? 'riziková' : 'bezpečná';
+            riskDetails.innerHTML = `
+                Transakce je klasifikována jako <strong>${riskText}</strong><br>
+                Úroveň rizika: <strong>${getRiskLevelText(result.risk_level)}</strong>
+            `;
+            
+            // Set appropriate CSS class
+            riskResult.className = 'risk-result risk-' + result.risk_level.toLowerCase();
+            riskResult.style.display = 'block';
+        }
+        
+        function getRiskLevelText(level) {
+            switch(level) {
+                case 'HIGH': return 'Vysoké riziko';
+                case 'MEDIUM': return 'Střední riziko';
+                case 'LOW': return 'Nízké riziko';
+                default: return 'Neznámé';
+            }
+        }
+        
+        // Auto-refresh stats every 30 seconds
+        setInterval(async function() {
+            try {
+                const response = await fetch('/api/stats');
+                const stats = await response.json();
+                updateStatsDisplay(stats);
+            } catch (error) {
+                console.log('Chyba při aktualizaci statistik:', error);
+            }
+        }, 30000);
+        
+        function updateStatsDisplay(stats) {
+            // Update accuracy
+            if (stats.model_accuracy) {
+                document.querySelector('.accuracy-value').textContent = 
+                    (stats.model_accuracy * 100).toFixed(1) + '%';
+            }
+            
+            // Update other stats as needed
+            // This could be expanded to update all displayed statistics
+        }
+    </script>
+</body>
+</html>
