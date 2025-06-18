@@ -20,6 +20,8 @@ pytest-flask==1.2.0
 
 # Security
 cryptography==41.0.7
+python-dotenv==1.0.0
 
 # Environment management
 python-dotenv==1.0.0
+azure-storage-blob==12.18.3

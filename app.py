@@ -14,6 +14,15 @@ import json
 from datetime import datetime, timedelta
 import os
 import logging
+from azure_storage import CNBAzureStorage
+from dotenv import load_dotenv
+from model_monitoring import CNBModelMonitor
+
+# Load environment variables
+load_dotenv()
+
+# Initialize Azure Storage
+azure_storage = CNBAzureStorage()
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -24,6 +33,7 @@ app = Flask(__name__)
 
 # Global variables for model and data
 model = None
+model_monitor = None
 model_accuracy = 0
 data_stats = {}
 feature_columns = []
@@ -47,23 +57,13 @@ def generate_advanced_banking_data():
     # Advanced time features
     base_date = datetime(2023, 1, 1)
     dates = [base_date + timedelta(days=np.random.randint(0, 730)) for _ in range(n_rows)]
-    hours = np.random.choice(range(24), size=n_rows, p=[
-        0.01, 0.01, 0.005, 0.005, 0.005, 0.01,  # 0-5: Velmi nízká aktivita (rizikové hodiny)
-        0.02, 0.04, 0.06, 0.08, 0.09, 0.10,     # 6-11: Rostoucí aktivita
-        0.08, 0.07, 0.08, 0.09, 0.07, 0.06,     # 12-17: Nejvyšší aktivita
-        0.05, 0.04, 0.03, 0.02, 0.015, 0.01     # 18-23: Klesající aktivita
-    ])
+    hours = np.random.choice(range(24), size=n_rows)
     
     # Transaction types with realistic distribution
-    transaction_types = np.random.choice(
-        VALID_TRANSACTION_TYPES, 
-        size=n_rows,
-        p=[0.15, 0.20, 0.25, 0.25, 0.15]  # Realistické rozložení
-    )
+    transaction_types = np.random.choice(VALID_TRANSACTION_TYPES, size=n_rows)
     
     # Advanced customer profiles
-    customer_profiles = np.random.choice(['low_income', 'middle_income', 'high_income', 'business'], 
-                                       size=n_rows, p=[0.3, 0.5, 0.15, 0.05])
+    customer_profiles = np.random.choice(['low_income', 'middle_income', 'high_income', 'business'], size=n_rows)
     
     # Customer demographics
     ages = np.random.normal(45, 15, n_rows).astype(int)
@@ -341,6 +341,13 @@ def train_advanced_risk_model():
         print("🚀 Advanced risk model ready!")
         
         logger.info("Model training completed successfully")
+
+        global model_monitor
+        model_monitor = CNBModelMonitor(model=model)
+        if model_accuracy:
+            model_monitor.set_baseline_performance(model_accuracy)
+        
+        logger.info("Model monitor initialized successfully")
         return model, model_accuracy, data_stats
         
     except Exception as e:
@@ -564,6 +571,22 @@ def predict_risk():
             is_cash_business=is_cash_business
         )
         
+        if azure_storage.is_connected():
+            upload_result = azure_storage.upload_risk_analysis(
+                transaction_data=data,
+                risk_result=result,
+                customer_id=f"customer_{hash(str(data.get('amount', 0)))}"
+            )
+
+        model_monitor.log_prediction(
+            features=data,
+            prediction=result,
+            metadata={
+                'timestamp': datetime.now().isoformat(),
+                'source': 'web_api'
+            }
+        )
+    
         return jsonify(result)
         
     except ValueError as e:
@@ -630,6 +653,45 @@ def initialize_app():
     except Exception as e:
         logger.error(f"Failed to initialize application: {e}")
         return False
+    
+@app.route('/monitoring')
+def monitoring_page():
+    """Monitoring dashboard page"""
+    try:
+        return render_template('monitoring.html')
+    except Exception as e:
+        logger.error(f"Error rendering monitoring page: {e}")
+        return jsonify({'error': 'Monitoring page unavailable'}), 500
+    
+@app.route('/api/monitoring/dashboard')
+def monitoring_dashboard():
+    """Get monitoring dashboard data"""
+    try:
+        dashboard_data = model_monitor.get_monitoring_dashboard_data()
+        return jsonify(dashboard_data)
+    except Exception as e:
+        logger.error(f"Error getting dashboard data: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/monitoring/report')
+def monitoring_report():
+    """Generate comprehensive monitoring report"""
+    try:
+        report = model_monitor.generate_monitoring_report()
+        return jsonify(report)
+    except Exception as e:
+        logger.error(f"Error generating report: {e}")
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/monitoring/drift')
+def drift_detection():
+    """Check for model drift"""
+    try:
+        drift_analysis = model_monitor.detect_model_drift()
+        return jsonify(drift_analysis)
+    except Exception as e:
+        logger.error(f"Error detecting drift: {e}")
+        return jsonify({'error': str(e)}), 500
 
 if __name__ == '__main__':
     # Initialize app

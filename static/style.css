@@ -1,39 +1,39 @@
 /* ==========================================
-   CNB Risk Platform - Advanced Banking Design
-   Enhanced for Advanced Risk Assessment Features
+   CNB Risk Platform - Light & Modern Design
+   Unified styling for Dashboard & Monitoring
    ========================================== */
 
 :root {
-    /* ČNB Brand Colors */
-    --cnb-primary: #1e3a8a;
+    /* Light Theme Colors - Much Brighter */
+    --cnb-primary: #2563eb;
     --cnb-secondary: #3b82f6;
-    --cnb-accent: #0ea5e9;
+    --cnb-accent: #06b6d4;
     --cnb-gold: #f59e0b;
     
-    /* Enhanced Risk Colors */
-    --risk-critical: #7f1d1d;
-    --risk-high: #dc2626;
-    --risk-medium: #ea580c;
-    --risk-low: #16a34a;
-    --risk-minimal: #059669;
+    /* Enhanced Risk Colors - Softer */
+    --risk-critical: #ef4444;
+    --risk-high: #f97316;
+    --risk-medium: #eab308;
+    --risk-low: #22c55e;
+    --risk-minimal: #10b981;
     
-    /* Neutral Colors */
-    --gray-50: #f8fafc;
-    --gray-100: #f1f5f9;
-    --gray-200: #e2e8f0;
-    --gray-300: #cbd5e1;
-    --gray-400: #94a3b8;
-    --gray-500: #64748b;
-    --gray-600: #475569;
-    --gray-700: #334155;
-    --gray-800: #1e293b;
-    --gray-900: #0f172a;
+    /* Light Neutral Colors */
+    --gray-50: #ffffff;
+    --gray-100: #f8fafc;
+    --gray-200: #f1f5f9;
+    --gray-300: #e2e8f0;
+    --gray-400: #cbd5e1;
+    --gray-500: #94a3b8;
+    --gray-600: #64748b;
+    --gray-700: #475569;
+    --gray-800: #334155;
+    --gray-900: #1e293b;
     
-    /* Shadows */
-    --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-    --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-    --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
-    --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+    /* Light Shadows - Softer */
+    --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+    --shadow-md: 0 4px 8px -2px rgba(0, 0, 0, 0.1);
+    --shadow-lg: 0 8px 16px -4px rgba(0, 0, 0, 0.1);
+    --shadow-xl: 0 16px 32px -8px rgba(0, 0, 0, 0.1);
     
     /* Transitions */
     --transition-fast: 0.15s ease-in-out;
@@ -65,30 +65,31 @@ body {
 }
 
 /* ==========================================
-   Header
+   Header - Light & Airy
    ========================================== */
 
-.header {
+.header, .monitoring-header {
     background: linear-gradient(135deg, var(--cnb-primary) 0%, var(--cnb-secondary) 50%, var(--cnb-accent) 100%);
     position: relative;
     overflow: hidden;
+    padding: 2rem 0;
 }
 
-.header::before {
+.header::before, .monitoring-header::before {
     content: '';
     position: absolute;
     top: 0;
     left: 0;
     right: 0;
     bottom: 0;
-    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="10" height="10" patternUnits="userSpaceOnUse"><path d="M 10 0 L 0 0 0 10" fill="none" stroke="rgba(255,255,255,0.05)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
+    background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grid" width="20" height="20" patternUnits="userSpaceOnUse"><path d="M 20 0 L 0 0 0 20" fill="none" stroke="rgba(255,255,255,0.1)" stroke-width="1"/></pattern></defs><rect width="100" height="100" fill="url(%23grid)"/></svg>');
     opacity: 0.3;
 }
 
 .header-content {
     max-width: 1400px;
     margin: 0 auto;
-    padding: 2rem;
+    padding: 0 2rem;
     display: flex;
     align-items: center;
     justify-content: space-between;
@@ -111,15 +112,15 @@ body {
     letter-spacing: 0.025em;
 }
 
-.status-indicator {
+.status-indicator, .refresh-indicator {
     display: flex;
     align-items: center;
     gap: 0.75rem;
-    background: rgba(255, 255, 255, 0.15);
+    background: rgba(255, 255, 255, 0.2);
     padding: 0.75rem 1.25rem;
     border-radius: 50px;
     backdrop-filter: blur(20px);
-    border: 1px solid rgba(255, 255, 255, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.3);
     color: white;
     font-weight: 500;
     box-shadow: var(--shadow-lg);
@@ -183,24 +184,27 @@ body {
     padding: 2rem;
 }
 
-.dashboard-grid {
+.dashboard-grid, .monitoring-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
     gap: 1.5rem;
     margin-bottom: 2rem;
 }
 
+.monitoring-grid {
+    grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+}
+
 /* ==========================================
-   Cards
+   Cards - Much Lighter
    ========================================== */
 
-.card {
-    background: rgba(255, 255, 255, 0.95);
-    backdrop-filter: blur(20px);
+.card, .metric-card {
+    background: var(--gray-50);
     border-radius: 16px;
     padding: 2rem;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    box-shadow: var(--shadow-lg);
+    border: 1px solid var(--gray-200);
+    box-shadow: var(--shadow-md);
     transition: all var(--transition-normal);
     position: relative;
     overflow: hidden;
@@ -217,10 +221,10 @@ body {
     border-radius: 16px 16px 0 0;
 }
 
-.card:hover {
-    transform: translateY(-4px);
-    box-shadow: var(--shadow-xl);
-    border-color: rgba(59, 130, 246, 0.3);
+.card:hover, .metric-card:hover {
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--cnb-secondary);
 }
 
 .card-header {
@@ -251,10 +255,10 @@ body {
 }
 
 /* ==========================================
-   Statistics
+   Statistics & Metrics
    ========================================== */
 
-.stat-value {
+.stat-value, .metric-value {
     font-size: 2.5rem;
     font-weight: 800;
     color: var(--gray-900);
@@ -266,20 +270,124 @@ body {
     line-height: 1.1;
 }
 
-.stat-label {
-    color: var(--gray-500);
+.stat-label, .metric-label {
+    color: var(--gray-600);
     font-size: 0.9rem;
     font-weight: 500;
     letter-spacing: 0.025em;
 }
 
+.metric-card {
+    text-align: center;
+    padding: 1.5rem;
+}
+
 /* ==========================================
-   Advanced Form Sections
+   Monitoring Components
+   ========================================== */
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    background: var(--gray-50);
+    border-radius: 12px;
+    padding: 1rem;
+    box-shadow: var(--shadow-sm);
+    border: 1px solid var(--gray-200);
+}
+
+.status-healthy {
+    background: rgba(34, 197, 94, 0.1);
+    color: var(--risk-low);
+    border: 1px solid rgba(34, 197, 94, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-warning {
+    background: rgba(234, 179, 8, 0.1);
+    color: var(--risk-medium);
+    border: 1px solid rgba(234, 179, 8, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.status-critical {
+    background: rgba(239, 68, 68, 0.1);
+    color: var(--risk-critical);
+    border: 1px solid rgba(239, 68, 68, 0.3);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.alert-banner {
+    background: rgba(239, 68, 68, 0.05);
+    border: 1px solid rgba(239, 68, 68, 0.2);
+    border-radius: 8px;
+    padding: 1rem;
+    margin-bottom: 1rem;
+    color: var(--risk-critical);
+}
+
+.recommendations-list {
+    list-style: none;
+    padding: 0;
+}
+
+.recommendations-list li {
+    padding: 0.75rem;
+    margin-bottom: 0.5rem;
+    background: var(--gray-100);
+    border-left: 3px solid var(--cnb-secondary);
+    border-radius: 0 6px 6px 0;
+}
+
+.priority-high {
+    border-left-color: var(--risk-critical);
+    background: rgba(239, 68, 68, 0.05);
+}
+
+.priority-medium {
+    border-left-color: var(--risk-medium);
+    background: rgba(234, 179, 8, 0.05);
+}
+
+.priority-low {
+    border-left-color: var(--risk-low);
+    background: rgba(34, 197, 94, 0.05);
+}
+
+.loading-spinner {
+    width: 16px;
+    height: 16px;
+    border: 2px solid var(--gray-300);
+    border-top: 2px solid var(--cnb-secondary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+/* ==========================================
+   Form Sections - Lighter
    ========================================== */
 
 .risk-calculator {
     grid-column: 1 / -1;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+    background: var(--gray-50);
 }
 
 .toggle-container {
@@ -290,7 +398,7 @@ body {
 .form-section {
     margin-bottom: 2rem;
     padding: 1.5rem;
-    background: rgba(255, 255, 255, 0.5);
+    background: var(--gray-100);
     border-radius: 12px;
     border: 1px solid var(--gray-200);
 }
@@ -301,7 +409,7 @@ body {
     color: var(--cnb-primary);
     margin-bottom: 1.5rem;
     padding-bottom: 0.5rem;
-    border-bottom: 2px solid var(--gray-200);
+    border-bottom: 2px solid var(--gray-300);
     display: flex;
     align-items: center;
     gap: 0.5rem;
@@ -328,10 +436,10 @@ body {
 
 .form-input, .form-select {
     padding: 1rem;
-    border: 2px solid var(--gray-200);
+    border: 2px solid var(--gray-300);
     border-radius: 12px;
     font-size: 1rem;
-    background: white;
+    background: var(--gray-50);
     transition: all var(--transition-normal);
     box-shadow: var(--shadow-sm);
 }
@@ -339,12 +447,12 @@ body {
 .form-input:focus, .form-select:focus {
     outline: none;
     border-color: var(--cnb-secondary);
-    box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1), var(--shadow-md);
+    box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.1), var(--shadow-md);
     transform: translateY(-1px);
 }
 
 .form-input:hover, .form-select:hover {
-    border-color: var(--gray-300);
+    border-color: var(--gray-400);
     box-shadow: var(--shadow-md);
 }
 
@@ -356,7 +464,7 @@ body {
 }
 
 /* ==========================================
-   Buttons
+   Buttons - Light Theme
    ========================================== */
 
 .btn {
@@ -373,6 +481,10 @@ body {
     position: relative;
     overflow: hidden;
     letter-spacing: 0.025em;
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn::before {
@@ -388,7 +500,7 @@ body {
 
 .btn:hover {
     transform: translateY(-2px);
-    box-shadow: var(--shadow-xl);
+    box-shadow: var(--shadow-lg);
     background: linear-gradient(135deg, var(--cnb-secondary) 0%, var(--cnb-accent) 100%);
 }
 
@@ -402,9 +514,9 @@ body {
 }
 
 .btn-secondary {
-    background: linear-gradient(135deg, var(--gray-600) 0%, var(--gray-700) 100%);
-    color: white;
-    border: none;
+    background: var(--gray-100);
+    color: var(--gray-700);
+    border: 2px solid var(--gray-300);
     padding: 0.75rem 1.5rem;
     border-radius: 8px;
     font-size: 0.9rem;
@@ -412,12 +524,17 @@ body {
     cursor: pointer;
     transition: all var(--transition-normal);
     box-shadow: var(--shadow-sm);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
 }
 
 .btn-secondary:hover {
     transform: translateY(-1px);
     box-shadow: var(--shadow-md);
-    background: linear-gradient(135deg, var(--gray-700) 0%, var(--gray-800) 100%);
+    background: var(--gray-200);
+    border-color: var(--gray-400);
 }
 
 .form-actions {
@@ -428,7 +545,7 @@ body {
 }
 
 /* ==========================================
-   Enhanced Risk Results
+   Risk Results - Light Theme
    ========================================== */
 
 .risk-result {
@@ -440,6 +557,7 @@ body {
     position: relative;
     overflow: hidden;
     animation: slideIn 0.5s ease-out;
+    background: var(--gray-50);
 }
 
 @keyframes slideIn {
@@ -454,31 +572,31 @@ body {
 }
 
 .risk-critical {
-    background: linear-gradient(135deg, rgba(127, 29, 29, 0.15) 0%, rgba(220, 38, 38, 0.05) 100%);
-    border: 3px solid var(--risk-critical);
+    background: rgba(239, 68, 68, 0.05);
+    border: 2px solid var(--risk-critical);
     color: var(--risk-critical);
 }
 
 .risk-high {
-    background: linear-gradient(135deg, rgba(220, 38, 38, 0.1) 0%, rgba(239, 68, 68, 0.05) 100%);
+    background: rgba(249, 115, 22, 0.05);
     border: 2px solid var(--risk-high);
     color: var(--risk-high);
 }
 
 .risk-medium {
-    background: linear-gradient(135deg, rgba(234, 88, 12, 0.1) 0%, rgba(251, 146, 60, 0.05) 100%);
+    background: rgba(234, 179, 8, 0.05);
     border: 2px solid var(--risk-medium);
     color: var(--risk-medium);
 }
 
 .risk-low {
-    background: linear-gradient(135deg, rgba(22, 163, 74, 0.1) 0%, rgba(34, 197, 94, 0.05) 100%);
+    background: rgba(34, 197, 94, 0.05);
     border: 2px solid var(--risk-low);
     color: var(--risk-low);
 }
 
 .risk-minimal {
-    background: linear-gradient(135deg, rgba(5, 150, 105, 0.1) 0%, rgba(16, 185, 129, 0.05) 100%);
+    background: rgba(16, 185, 129, 0.05);
     border: 2px solid var(--risk-minimal);
     color: var(--risk-minimal);
 }
@@ -511,7 +629,7 @@ body {
     font-weight: 500;
     margin-bottom: 1rem;
     padding: 1rem;
-    background: rgba(255, 255, 255, 0.3);
+    background: rgba(255, 255, 255, 0.5);
     border-radius: 8px;
 }
 
@@ -535,7 +653,7 @@ body {
     padding: 0.5rem 0;
     padding-left: 1.5rem;
     position: relative;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.3);
 }
 
 .risk-factors li:last-child {
@@ -551,7 +669,7 @@ body {
 }
 
 /* ==========================================
-   Risk Guidelines
+   Guidelines - Light Theme
    ========================================== */
 
 .risk-guidelines {
@@ -562,9 +680,9 @@ body {
 
 .guideline-section {
     padding: 1.5rem;
-    background: linear-gradient(135deg, rgba(255, 255, 255, 0.8) 0%, rgba(248, 250, 252, 0.8) 100%);
+    background: var(--gray-100);
     border-radius: 12px;
-    border: 1px solid var(--gray-200);
+    border: 1px solid var(--gray-300);
 }
 
 .guideline-section h5 {
@@ -573,7 +691,7 @@ body {
     color: var(--cnb-primary);
     margin-bottom: 1rem;
     padding-bottom: 0.5rem;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--gray-300);
 }
 
 .guideline-section ul {
@@ -599,36 +717,7 @@ body {
 }
 
 /* ==========================================
-   Loading Indicator
-   ========================================== */
-
-.loading-indicator {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 1rem;
-    margin-top: 1.5rem;
-    padding: 1.5rem;
-    color: var(--gray-600);
-    font-weight: 500;
-}
-
-.spinner {
-    width: 24px;
-    height: 24px;
-    border: 3px solid var(--gray-200);
-    border-top: 3px solid var(--cnb-secondary);
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-}
-
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
-}
-
-/* ==========================================
-   System Information
+   System Information - Light
    ========================================== */
 
 .system-info {
@@ -642,7 +731,7 @@ body {
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 0;
-    border-bottom: 1px solid var(--gray-200);
+    border-bottom: 1px solid var(--gray-300);
 }
 
 .info-row:last-child {
@@ -661,7 +750,36 @@ body {
 }
 
 /* ==========================================
-   Advanced Form Animations
+   Loading Indicator
+   ========================================== */
+
+.loading-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 1rem;
+    margin-top: 1.5rem;
+    padding: 1.5rem;
+    color: var(--gray-600);
+    font-weight: 500;
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid var(--gray-300);
+    border-top: 3px solid var(--cnb-secondary);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}
+
+/* ==========================================
+   Form Animations
    ========================================== */
 
 .form-section {
@@ -690,7 +808,7 @@ body {
 
 .form-input:invalid {
     border-color: var(--risk-high);
-    box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1);
+    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
 }
 
 .form-input:valid {
@@ -699,20 +817,20 @@ body {
 
 .form-group.error .form-input {
     border-color: var(--risk-high);
-    background-color: rgba(220, 38, 38, 0.05);
+    background-color: rgba(239, 68, 68, 0.05);
 }
 
 .form-group.success .form-input {
     border-color: var(--risk-low);
-    background-color: rgba(22, 163, 74, 0.05);
+    background-color: rgba(34, 197, 94, 0.05);
 }
 
 /* ==========================================
-   Enhanced Responsive Design
+   Responsive Design
    ========================================== */
 
 @media (max-width: 1024px) {
-    .dashboard-grid {
+    .dashboard-grid, .monitoring-grid {
         grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
     }
     
@@ -737,7 +855,7 @@ body {
         text-align: center;
     }
     
-    .dashboard-grid {
+    .dashboard-grid, .monitoring-grid {
         grid-template-columns: 1fr;
         gap: 1rem;
     }
@@ -747,7 +865,7 @@ body {
         gap: 1rem;
     }
     
-    .card {
+    .card, .metric-card {
         padding: 1.5rem;
     }
     
@@ -755,7 +873,7 @@ body {
         padding: 1rem;
     }
     
-    .stat-value {
+    .stat-value, .metric-value {
         font-size: 2rem;
     }
     
@@ -777,7 +895,7 @@ body {
 }
 
 @media (max-width: 480px) {
-    .card {
+    .card, .metric-card {
         padding: 1rem;
     }
     
@@ -787,7 +905,7 @@ body {
         text-align: center;
     }
     
-    .stat-value {
+    .stat-value, .metric-value {
         font-size: 1.75rem;
     }
     
@@ -805,48 +923,7 @@ body {
 }
 
 /* ==========================================
-   Dark Mode Support
-   ========================================== */
-
-@media (prefers-color-scheme: dark) {
-    :root {
-        --gray-50: #0f172a;
-        --gray-100: #1e293b;
-        --gray-200: #334155;
-        --gray-300: #475569;
-        --gray-700: #cbd5e1;
-        --gray-800: #e2e8f0;
-        --gray-900: #f1f5f9;
-    }
-    
-    body {
-        background: linear-gradient(135deg, var(--gray-50) 0%, var(--gray-100) 100%);
-    }
-    
-    .card {
-        background: rgba(30, 41, 59, 0.95);
-        border-color: rgba(51, 65, 85, 0.3);
-    }
-    
-    .form-section {
-        background: rgba(51, 65, 85, 0.3);
-        border-color: rgba(71, 85, 105, 0.3);
-    }
-    
-    .form-input, .form-select {
-        background: var(--gray-100);
-        border-color: var(--gray-200);
-        color: var(--gray-800);
-    }
-    
-    .guideline-section {
-        background: rgba(51, 65, 85, 0.5);
-        border-color: rgba(71, 85, 105, 0.3);
-    }
-}
-
-/* ==========================================
-   Accessibility Improvements
+   Accessibility
    ========================================== */
 
 .sr-only {
@@ -864,20 +941,6 @@ body {
 *:focus-visible {
     outline: 2px solid var(--cnb-secondary);
     outline-offset: 2px;
-}
-
-@media (prefers-contrast: high) {
-    .card {
-        border-width: 2px;
-    }
-    
-    .btn {
-        border: 2px solid var(--cnb-primary);
-    }
-    
-    .form-input, .form-select {
-        border-width: 2px;
-    }
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -900,19 +963,19 @@ body {
         color: black;
     }
     
-    .header {
+    .header, .monitoring-header {
         background: var(--cnb-primary);
         color: white;
     }
     
-    .card {
+    .card, .metric-card {
         background: white;
         border: 1px solid #ccc;
         box-shadow: none;
         page-break-inside: avoid;
     }
     
-    .btn {
+    .btn, .btn-secondary {
         display: none;
     }
     

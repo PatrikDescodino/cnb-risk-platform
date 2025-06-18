@@ -1,0 +1,562 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ČNB Model Monitoring Dashboard</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/3.9.1/chart.min.js"></script>
+    <style>
+        /* Additional monitoring-specific styles */
+        .monitoring-header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3730a3 50%, #581c87 100%);
+            color: white;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        
+        .monitoring-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(400px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+        
+        .chart-container {
+            position: relative;
+            height: 300px;
+            background: white;
+            border-radius: 12px;
+            padding: 1rem;
+            box-shadow: var(--shadow-lg);
+        }
+        
+        .metric-card {
+            background: linear-gradient(135deg, rgba(255,255,255,0.95), rgba(248,250,252,0.95));
+            border-radius: 12px;
+            padding: 1.5rem;
+            text-align: center;
+            box-shadow: var(--shadow-md);
+            border: 1px solid rgba(59, 130, 246, 0.1);
+        }
+        
+        .metric-value {
+            font-size: 2.5rem;
+            font-weight: 800;
+            margin: 0.5rem 0;
+            background: linear-gradient(135deg, var(--cnb-primary), var(--cnb-secondary));
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        
+        .metric-label {
+            color: var(--gray-600);
+            font-weight: 500;
+            font-size: 0.9rem;
+        }
+        
+        .status-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.5rem 1rem;
+            border-radius: 20px;
+            font-weight: 500;
+            font-size: 0.85rem;
+        }
+        
+        .status-healthy {
+            background: rgba(16, 185, 129, 0.1);
+            color: #059669;
+            border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        
+        .status-warning {
+            background: rgba(245, 158, 11, 0.1);
+            color: #d97706;
+            border: 1px solid rgba(245, 158, 11, 0.2);
+        }
+        
+        .status-critical {
+            background: rgba(239, 68, 68, 0.1);
+            color: #dc2626;
+            border: 1px solid rgba(239, 68, 68, 0.2);
+        }
+        
+        .refresh-indicator {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--gray-500);
+            font-size: 0.85rem;
+        }
+        
+        .loading-spinner {
+            width: 16px;
+            height: 16px;
+            border: 2px solid var(--gray-200);
+            border-top: 2px solid var(--cnb-secondary);
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        .alert-banner {
+            background: linear-gradient(135deg, rgba(239, 68, 68, 0.1), rgba(220, 38, 38, 0.05));
+            border: 1px solid rgba(239, 68, 68, 0.2);
+            border-radius: 8px;
+            padding: 1rem;
+            margin-bottom: 1rem;
+            color: #dc2626;
+        }
+        
+        .recommendations-list {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .recommendations-list li {
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            background: rgba(59, 130, 246, 0.05);
+            border-left: 3px solid var(--cnb-secondary);
+            border-radius: 0 6px 6px 0;
+        }
+        
+        .priority-high {
+            border-left-color: #dc2626;
+            background: rgba(239, 68, 68, 0.05);
+        }
+        
+        .priority-medium {
+            border-left-color: #d97706;
+            background: rgba(245, 158, 11, 0.05);
+        }
+        
+        .priority-low {
+            border-left-color: #059669;
+            background: rgba(16, 185, 129, 0.05);
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="monitoring-header">
+        <div class="container">
+            <h1>📊 ČNB Model Monitoring Dashboard</h1>
+            <p>Real-time sledování výkonnosti ML modelu pro rizikovou analýzu</p>
+            <div class="refresh-indicator">
+                <span id="refreshStatus">Načítání dat...</span>
+                <div class="loading-spinner" id="loadingSpinner"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="container">
+        <!-- Alert Banner -->
+        <div id="alertBanner" class="alert-banner" style="display: none;">
+            <strong>⚠️ Upozornění:</strong> <span id="alertMessage"></span>
+        </div>
+
+        <!-- Key Metrics -->
+        <div class="dashboard-grid">
+            <div class="metric-card">
+                <div class="metric-value" id="totalPredictions">---</div>
+                <div class="metric-label">Celkový počet predikcí</div>
+                <div class="status-indicator status-healthy" id="systemStatus">
+                    <span>🟢 System Online</span>
+                </div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-value" id="avgRiskScore">---%</div>
+                <div class="metric-label">Průměrné rizikové skóre</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-value" id="highRiskRate">---%</div>
+                <div class="metric-label">Míra vysokých rizik</div>
+            </div>
+
+            <div class="metric-card">
+                <div class="metric-value" id="modelStability">---</div>
+                <div class="metric-label">Stabilita modelu</div>
+                <div id="stabilityStatus" class="status-indicator status-healthy">
+                    <span>🟢 Stabilní</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Charts Section -->
+        <div class="monitoring-grid">
+            <!-- Risk Distribution Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">📊 Distribuce rizikových úrovní</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="riskDistributionChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Hourly Activity Chart -->
+            <div class="card">
+                <div class="card-header">
+                    <h3 class="card-title">⏰ Hodinová aktivita</h3>
+                </div>
+                <div class="chart-container">
+                    <canvas id="hourlyActivityChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Feature Statistics -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">📈 Statistiky features</h3>
+            </div>
+            <div id="featureStats" class="dashboard-grid">
+                <!-- Feature stats will be populated here -->
+            </div>
+        </div>
+
+        <!-- Recommendations -->
+        <div class="card">
+            <div class="card-header">
+                <h3 class="card-title">💡 Doporučení</h3>
+            </div>
+            <ul id="recommendationsList" class="recommendations-list">
+                <!-- Recommendations will be populated here -->
+            </ul>
+        </div>
+
+        <!-- Navigation -->
+        <div class="form-actions">
+            <a href="/" class="btn-secondary">← Zpět na hlavní dashboard</a>
+            <button onclick="refreshData()" class="btn">🔄 Aktualizovat data</button>
+            <button onclick="downloadReport()" class="btn-secondary">📥 Stáhnout report</button>
+        </div>
+    </div>
+
+    <script>
+        // Global variables
+        let riskDistributionChart = null;
+        let hourlyActivityChart = null;
+        let autoRefreshInterval = null;
+
+        // Initialize dashboard
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCharts();
+            loadMonitoringData();
+            startAutoRefresh();
+        });
+
+        function initializeCharts() {
+            // Risk Distribution Pie Chart
+            const riskCtx = document.getElementById('riskDistributionChart').getContext('2d');
+            riskDistributionChart = new Chart(riskCtx, {
+                type: 'doughnut',
+                data: {
+                    labels: ['Minimální', 'Nízké', 'Střední', 'Vysoké', 'Kritické'],
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: [
+                            '#10b981', // Minimal - Green
+                            '#3b82f6', // Low - Blue  
+                            '#f59e0b', // Medium - Yellow
+                            '#ef4444', // High - Red
+                            '#7c2d12'  // Critical - Dark Red
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        },
+                        title: {
+                            display: true,
+                            text: 'Rozložení rizikových úrovní'
+                        }
+                    }
+                }
+            });
+
+            // Hourly Activity Line Chart  
+            const hourlyCtx = document.getElementById('hourlyActivityChart').getContext('2d');
+            hourlyActivityChart = new Chart(hourlyCtx, {
+                type: 'line',
+                data: {
+                    labels: [],
+                    datasets: [{
+                        label: 'Celkové predikce',
+                        data: [],
+                        borderColor: '#3b82f6',
+                        backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                        tension: 0.4,
+                        fill: true
+                    }, {
+                        label: 'Vysoká rizika',
+                        data: [],
+                        borderColor: '#ef4444',
+                        backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                        tension: 0.4,
+                        fill: false
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Počet predikcí'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Hodina'
+                            }
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            position: 'top'
+                        }
+                    }
+                }
+            });
+        }
+
+        async function loadMonitoringData() {
+            showLoading(true);
+            
+            try {
+                // Load dashboard data
+                const dashboardResponse = await fetch('/api/monitoring/dashboard');
+                const dashboardData = await dashboardResponse.json();
+                
+                // Load comprehensive report
+                const reportResponse = await fetch('/api/monitoring/report');
+                const reportData = await reportResponse.json();
+                
+                updateDashboard(dashboardData, reportData);
+                
+                document.getElementById('refreshStatus').textContent = 
+                    `Aktualizováno: ${new Date().toLocaleTimeString()}`;
+                
+            } catch (error) {
+                console.error('Error loading monitoring data:', error);
+                showAlert('Chyba při načítání monitoring dat: ' + error.message);
+                document.getElementById('refreshStatus').textContent = 'Chyba při načítání';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updateDashboard(dashboardData, reportData) {
+            if (dashboardData.error || reportData.error) {
+                showAlert('Nedostatek dat pro monitoring analýzu');
+                return;
+            }
+
+            // Update key metrics
+            updateKeyMetrics(reportData);
+            
+            // Update charts
+            updateRiskDistributionChart(reportData.risk_distribution);
+            updateHourlyActivityChart(dashboardData.chart_data);
+            
+            // Update feature statistics
+            updateFeatureStats(reportData.feature_statistics);
+            
+            // Update recommendations
+            updateRecommendations(reportData.recommendations);
+            
+            // Update system status
+            updateSystemStatus(reportData.compliance_summary);
+        }
+
+        function updateKeyMetrics(reportData) {
+            const metadata = reportData.report_metadata;
+            const compliance = reportData.compliance_summary;
+            const performance = reportData.performance_metrics;
+
+            document.getElementById('totalPredictions').textContent = 
+                metadata.total_predictions.toLocaleString();
+                
+            if (performance.avg_risk_score !== undefined) {
+                document.getElementById('avgRiskScore').textContent = 
+                    (performance.avg_risk_score * 100).toFixed(1) + '%';
+            }
+            
+            document.getElementById('highRiskRate').textContent = 
+                (compliance.alert_rate * 100).toFixed(1) + '%';
+                
+            document.getElementById('modelStability').textContent = 
+                compliance.model_stability;
+                
+            // Update stability status
+            const stabilityElement = document.getElementById('stabilityStatus');
+            if (compliance.model_stability === 'STABLE') {
+                stabilityElement.className = 'status-indicator status-healthy';
+                stabilityElement.innerHTML = '<span>🟢 Stabilní</span>';
+            } else {
+                stabilityElement.className = 'status-indicator status-warning';
+                stabilityElement.innerHTML = '<span>🟡 Nestabilní</span>';
+            }
+        }
+
+        function updateRiskDistributionChart(riskDistribution) {
+            const data = [
+                riskDistribution.MINIMAL || 0,
+                riskDistribution.LOW || 0,
+                riskDistribution.MEDIUM || 0,
+                riskDistribution.HIGH || 0,
+                riskDistribution.CRITICAL || 0
+            ];
+            
+            riskDistributionChart.data.datasets[0].data = data;
+            riskDistributionChart.update();
+        }
+
+        function updateHourlyActivityChart(chartData) {
+            if (!chartData || chartData.length === 0) return;
+            
+            const labels = chartData.map(d => d.hour);
+            const totalData = chartData.map(d => d.total_predictions);
+            const highRiskData = chartData.map(d => d.high_risk_count);
+            
+            hourlyActivityChart.data.labels = labels;
+            hourlyActivityChart.data.datasets[0].data = totalData;
+            hourlyActivityChart.data.datasets[1].data = highRiskData;
+            hourlyActivityChart.update();
+        }
+
+        function updateFeatureStats(featureStats) {
+            const container = document.getElementById('featureStats');
+            container.innerHTML = '';
+            
+            for (const [feature, stats] of Object.entries(featureStats)) {
+                const featureCard = document.createElement('div');
+                featureCard.className = 'metric-card';
+                featureCard.innerHTML = `
+                    <div class="metric-value">${stats.mean.toLocaleString()}</div>
+                    <div class="metric-label">${getFeatureDisplayName(feature)} (průměr)</div>
+                    <small style="color: var(--gray-500);">
+                        Min: ${stats.min.toLocaleString()} | Max: ${stats.max.toLocaleString()}
+                    </small>
+                `;
+                container.appendChild(featureCard);
+            }
+        }
+
+        function updateRecommendations(recommendations) {
+            const list = document.getElementById('recommendationsList');
+            list.innerHTML = '';
+            
+            recommendations.forEach(rec => {
+                const li = document.createElement('li');
+                li.className = `priority-${rec.priority.toLowerCase()}`;
+                li.innerHTML = `
+                    <strong>${getPriorityIcon(rec.priority)} ${rec.action}</strong><br>
+                    <small>${rec.reason} | Timeline: ${rec.timeline}</small>
+                `;
+                list.appendChild(li);
+            });
+        }
+
+        function updateSystemStatus(compliance) {
+            const status = document.getElementById('systemStatus');
+            if (compliance.regulatory_status === 'COMPLIANT') {
+                status.className = 'status-indicator status-healthy';
+                status.innerHTML = '<span>🟢 System Online</span>';
+            } else {
+                status.className = 'status-indicator status-warning';
+                status.innerHTML = '<span>🟡 Review Required</span>';
+            }
+        }
+
+        function getFeatureDisplayName(feature) {
+            const names = {
+                'amount': 'Částka transakce',
+                'account_balance': 'Zůstatek účtu', 
+                'monthly_income': 'Měsíční příjem'
+            };
+            return names[feature] || feature;
+        }
+
+        function getPriorityIcon(priority) {
+            const icons = {
+                'HIGH': '🔴',
+                'MEDIUM': '🟡', 
+                'LOW': '🟢',
+                'INFO': 'ℹ️'
+            };
+            return icons[priority] || '📌';
+        }
+
+        function showAlert(message) {
+            const banner = document.getElementById('alertBanner');
+            const messageEl = document.getElementById('alertMessage');
+            messageEl.textContent = message;
+            banner.style.display = 'block';
+            
+            setTimeout(() => {
+                banner.style.display = 'none';
+            }, 5000);
+        }
+
+        function showLoading(show) {
+            const spinner = document.getElementById('loadingSpinner');
+            spinner.style.display = show ? 'block' : 'none';
+        }
+
+        function startAutoRefresh() {
+            // Refresh every 30 seconds
+            autoRefreshInterval = setInterval(loadMonitoringData, 30000);
+        }
+
+        function refreshData() {
+            loadMonitoringData();
+        }
+
+        async function downloadReport() {
+            try {
+                const response = await fetch('/api/monitoring/report');
+                const data = await response.json();
+                
+                const blob = new Blob([JSON.stringify(data, null, 2)], {
+                    type: 'application/json'
+                });
+                
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `cnb_monitoring_report_${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                
+            } catch (error) {
+                showAlert('Chyba při stahování reportu: ' + error.message);
+            }
+        }
+
+        // Cleanup on page unload
+        window.addEventListener('beforeunload', function() {
+            if (autoRefreshInterval) {
+                clearInterval(autoRefreshInterval);
+            }
+        });
+    </script>
+</body>
+</html>
