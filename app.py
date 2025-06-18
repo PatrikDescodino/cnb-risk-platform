@@ -693,21 +693,10 @@ def drift_detection():
         logger.error(f"Error detecting drift: {e}")
         return jsonify({'error': str(e)}), 500
 
+initialize_app()
+
 if __name__ == '__main__':
-    # Initialize app
-    if not initialize_app():
-        logger.error("Application initialization failed. Exiting.")
-        exit(1)
-    
-    # Get configuration from environment
     port = int(os.environ.get('PORT', 8000))
     debug = os.environ.get('FLASK_ENV') == 'development'
     host = os.environ.get('HOST', '0.0.0.0')
-    
-    logger.info(f"Starting server on {host}:{port} (debug={debug})")
-    
-    try:
-        app.run(host=host, port=port, debug=debug)
-    except Exception as e:
-        logger.error(f"Failed to start server: {e}")
-        exit(1)
+    app.run(host=host, port=port, debug=debug)
