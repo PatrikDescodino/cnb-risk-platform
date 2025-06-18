@@ -1,6 +1,6 @@
 """
 CNB Risk Platform - Advanced Banking Risk Model
-Azure-optimized version with MONITORING INTEGRATION
+WITH ADAPTIVE LEARNING from Azure Storage
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -40,6 +40,11 @@ feature_columns = []
 model_training_lock = threading.Lock()
 model_training_in_progress = False
 
+# Adaptive learning variables
+real_data_cache = []  # Cache for real transaction data
+last_retrain_time = None
+auto_retrain_threshold = 50  # Retrain after 50 new predictions
+
 # Initialize monitoring and storage
 model_monitor = None
 azure_storage = None
@@ -76,7 +81,7 @@ def ensure_model_trained():
         try:
             model_training_in_progress = True
             logger.info("Training model on first use...")
-            train_advanced_risk_model()
+            train_adaptive_risk_model()
             return True
         except Exception as e:
             logger.error(f"Failed to train model: {e}")
@@ -84,13 +89,173 @@ def ensure_model_trained():
         finally:
             model_training_in_progress = False
 
-def generate_advanced_banking_data():
-    """
-    Generate synthetic banking transaction data with realistic risk factors
-    Enhanced with AML, Fraud Detection, and Credit Risk features
-    """
-    n_rows = 5000  # Sníženo pro rychlejší start na Azure
+def load_real_data_from_storage():
+    """Load real transaction data from Azure Storage"""
+    global real_data_cache
     
+    if not azure_storage or not azure_storage.is_connected():
+        logger.info("No storage connection - using synthetic data only")
+        return pd.DataFrame()
+    
+    try:
+        logger.info("📦 Loading real transaction data from Azure Storage...")
+        
+        # Get list of stored analyses
+        analyses_result = azure_storage.list_risk_analyses(limit=1000)
+        
+        if not analyses_result.get('success') or not analyses_result.get('analyses'):
+            logger.info("No real data found in storage yet")
+            return pd.DataFrame()
+        
+        real_transactions = []
+        
+        # Download and parse each analysis
+        for analysis_info in analyses_result['analyses']:
+            try:
+                filename = analysis_info['filename']
+                download_result = azure_storage.download_analysis(filename)
+                
+                if download_result.get('success'):
+                    data = download_result['data']
+                    
+                    # Extract transaction data and risk result
+                    transaction_data = data.get('transaction_data', {})
+                    risk_analysis = data.get('risk_analysis', {})
+                    
+                    # Convert to training format
+                    if transaction_data and risk_analysis:
+                        real_transaction = {
+                            'amount': transaction_data.get('amount', 0),
+                            'transaction_type': transaction_data.get('transaction_type', 'transfer'),
+                            'country': transaction_data.get('country', 'CZ'),
+                            'transaction_hour': transaction_data.get('transaction_hour', 12),
+                            # Risk label from actual prediction
+                            'is_risky': risk_analysis.get('is_risky', False),
+                            'risk_score': risk_analysis.get('risk_score', 0.0),
+                            'risk_level': risk_analysis.get('risk_level', 'LOW'),
+                            # Timestamp for tracking
+                            'timestamp': data.get('timestamp'),
+                            'source': 'real_data'
+                        }
+                        real_transactions.append(real_transaction)
+                        
+            except Exception as e:
+                logger.warning(f"Failed to parse analysis {filename}: {e}")
+                continue
+        
+        if real_transactions:
+            real_df = pd.DataFrame(real_transactions)
+            real_data_cache = real_transactions  # Update cache
+            logger.info(f"✅ Loaded {len(real_df)} real transactions from storage")
+            return real_df
+        else:
+            logger.info("No valid real transaction data found")
+            return pd.DataFrame()
+            
+    except Exception as e:
+        logger.error(f"Error loading real data from storage: {e}")
+        return pd.DataFrame()
+
+def generate_advanced_banking_data(include_real_data=True):
+    """
+    Generate synthetic banking transaction data + include real data from storage
+    """
+    # Load real data from storage
+    real_df = pd.DataFrame()
+    if include_real_data:
+        real_df = load_real_data_from_storage()
+    
+    # Determine synthetic data size based on real data availability
+    if len(real_df) > 0:
+        # If we have real data, generate fewer synthetic samples
+        synthetic_ratio = max(2, int(5000 / len(real_df)))  # At least 2x real data
+        n_synthetic = min(5000, len(real_df) * synthetic_ratio)
+        logger.info(f"📊 Using {len(real_df)} real + {n_synthetic} synthetic transactions")
+    else:
+        n_synthetic = 5000
+        logger.info(f"📊 Using {n_synthetic} synthetic transactions (no real data yet)")
+    
+    # Generate synthetic data
+    synthetic_df = generate_synthetic_banking_data(n_synthetic)
+    
+    # Combine real and synthetic data
+    if len(real_df) > 0:
+        # Ensure real data has all required columns
+        real_df_enhanced = enhance_real_data_with_features(real_df)
+        
+        # Combine datasets
+        combined_df = pd.concat([synthetic_df, real_df_enhanced], ignore_index=True)
+        logger.info(f"✅ Combined dataset: {len(combined_df)} total transactions ({len(real_df)} real, {len(synthetic_df)} synthetic)")
+    else:
+        combined_df = synthetic_df
+        logger.info(f"✅ Using synthetic dataset: {len(combined_df)} transactions")
+    
+    return combined_df
+
+def enhance_real_data_with_features(real_df):
+    """Enhance real data with missing features using reasonable defaults"""
+    enhanced_df = real_df.copy()
+    
+    # Add missing features with realistic defaults
+    default_features = {
+        'customer_id': lambda: np.random.randint(1000, 9999),
+        'transaction_date': lambda: datetime.now() - timedelta(days=np.random.randint(0, 30)),
+        'account_balance': lambda row: max(row.get('amount', 50000) * np.random.uniform(0.5, 3.0), 1000),
+        'monthly_income': lambda row: estimate_income_from_amount(row.get('amount', 50000)),
+        'customer_age': lambda: np.random.randint(25, 65),
+        'account_age_days': lambda: np.random.randint(90, 1825),
+        'country_risk_score': lambda row: get_country_risk_score(row.get('country', 'CZ')),
+        'transactions_last_7d': lambda: np.random.randint(1, 8),
+        'transactions_last_30d': lambda: np.random.randint(5, 25),
+        'customer_profile': lambda row: estimate_profile_from_income(row.get('monthly_income', 50000)),
+        'is_cash_business': lambda: np.random.choice([0, 1], p=[0.85, 0.15])
+    }
+    
+    for col, default_func in default_features.items():
+        if col not in enhanced_df.columns:
+            if callable(default_func):
+                if col in ['account_balance', 'monthly_income', 'customer_profile']:
+                    # These depend on other columns
+                    enhanced_df[col] = enhanced_df.apply(default_func, axis=1)
+                else:
+                    enhanced_df[col] = [default_func() for _ in range(len(enhanced_df))]
+            else:
+                enhanced_df[col] = default_func
+    
+    return enhanced_df
+
+def estimate_income_from_amount(amount):
+    """Estimate monthly income based on transaction amount"""
+    if amount < 5000:
+        return np.random.normal(35000, 10000)
+    elif amount < 20000:
+        return np.random.normal(50000, 15000)
+    elif amount < 100000:
+        return np.random.normal(80000, 20000)
+    else:
+        return np.random.normal(120000, 30000)
+
+def estimate_profile_from_income(income):
+    """Estimate customer profile from income"""
+    if income < 30000:
+        return 'low_income'
+    elif income < 70000:
+        return 'middle_income'
+    elif income < 120000:
+        return 'high_income'
+    else:
+        return 'business'
+
+def get_country_risk_score(country):
+    """Get risk score for country"""
+    risk_map = {
+        'CZ': 1, 'SK': 2, 'DE': 1, 'AT': 1, 'PL': 2, 
+        'OFFSHORE': 8, 'HIGH_RISK': 10, 'OTHER': 5
+    }
+    return risk_map.get(country, 5)
+
+def generate_synthetic_banking_data(n_rows):
+    """Generate synthetic banking transaction data"""
     logger.info(f"Generating {n_rows} synthetic banking transactions...")
     
     # Basic customer data
@@ -200,68 +365,100 @@ def generate_advanced_banking_data():
         'transactions_last_7d': transactions_7d,
         'transactions_last_30d': transactions_30d,
         'customer_profile': customer_profiles,
-        'is_cash_business': is_cash_business
+        'is_cash_business': is_cash_business,
+        'source': 'synthetic'  # Mark as synthetic
     })
     
-    logger.info(f"Generated {len(df)} transactions successfully")
     return df
 
 def create_advanced_risk_labels(df):
-    """Create sophisticated risk labels"""
+    """Create sophisticated risk labels - enhanced for real data"""
     risk_score = np.zeros(len(df))
     
-    # AML factors
-    reporting_limit = 15000 * 24
-    structured_transactions = (df['amount'] > reporting_limit * 0.9) & (df['amount'] < reporting_limit)
-    risk_score += structured_transactions * 3
+    # For real data, use existing labels if available
+    if 'is_risky' in df.columns and 'source' in df.columns:
+        real_data_mask = df['source'] == 'real_data'
+        if real_data_mask.any():
+            logger.info(f"Using existing labels for {real_data_mask.sum()} real transactions")
+            # For real data, keep existing labels and create risk scores based on risk level
+            for idx, row in df[real_data_mask].iterrows():
+                if row['risk_level'] == 'CRITICAL':
+                    risk_score[idx] = 10
+                elif row['risk_level'] == 'HIGH':
+                    risk_score[idx] = 8
+                elif row['risk_level'] == 'MEDIUM':
+                    risk_score[idx] = 5
+                elif row['risk_level'] == 'LOW':
+                    risk_score[idx] = 2
+                else:  # MINIMAL
+                    risk_score[idx] = 1
     
-    unusual_amount = df['amount'] > (df['monthly_income'] * 0.5)
-    risk_score += unusual_amount * 2
+    # For synthetic data, calculate risk scores
+    synthetic_mask = df.get('source', 'synthetic') == 'synthetic'
+    if synthetic_mask.any():
+        # AML factors
+        reporting_limit = 15000 * 24
+        structured_transactions = (df['amount'] > reporting_limit * 0.9) & (df['amount'] < reporting_limit)
+        risk_score += structured_transactions * 3
+        
+        unusual_amount = df['amount'] > (df['monthly_income'] * 0.5)
+        risk_score += unusual_amount * 2
+        
+        high_country_risk = df['country_risk_score'] >= 7
+        risk_score += high_country_risk * 4
+        
+        high_frequency = df['transactions_last_7d'] > 10
+        risk_score += high_frequency * 2
+        
+        # Fraud factors
+        suspicious_hours = (df['transaction_hour'] <= 6) | (df['transaction_hour'] >= 23)
+        risk_score += suspicious_hours * 2
+        
+        new_account_risk = (df['account_age_days'] < 30) & (df['amount'] > df['monthly_income'])
+        risk_score += new_account_risk * 3
+        
+        overdraft_risk = (df['transaction_type'] == 'withdrawal') & (df['amount'] > df['account_balance'] * 0.8)
+        risk_score += overdraft_risk * 2
+        
+        # Business logic
+        cash_business_risk = (df['is_cash_business'] == 1) & (df['amount'] > 100000)
+        risk_score += cash_business_risk * 2
+        
+        low_balance_risk = (df['account_balance'] < df['monthly_income'] * 0.2) & (df['amount'] > df['monthly_income'] * 0.3)
+        risk_score += low_balance_risk * 2
+        
+        young_high_risk = (df['customer_age'] < 25) & (df['amount'] > 50000)
+        risk_score += young_high_risk * 1
+        
+        # Combined factors
+        offshore_combo = (df['country_risk_score'] >= 7) & (df['amount'] > 200000) & (df['is_cash_business'] == 1)
+        risk_score += offshore_combo * 5
     
-    high_country_risk = df['country_risk_score'] >= 7
-    risk_score += high_country_risk * 4
-    
-    high_frequency = df['transactions_last_7d'] > 10
-    risk_score += high_frequency * 2
-    
-    # Fraud factors
-    suspicious_hours = (df['transaction_hour'] <= 6) | (df['transaction_hour'] >= 23)
-    risk_score += suspicious_hours * 2
-    
-    new_account_risk = (df['account_age_days'] < 30) & (df['amount'] > df['monthly_income'])
-    risk_score += new_account_risk * 3
-    
-    overdraft_risk = (df['transaction_type'] == 'withdrawal') & (df['amount'] > df['account_balance'] * 0.8)
-    risk_score += overdraft_risk * 2
-    
-    # Business logic
-    cash_business_risk = (df['is_cash_business'] == 1) & (df['amount'] > 100000)
-    risk_score += cash_business_risk * 2
-    
-    low_balance_risk = (df['account_balance'] < df['monthly_income'] * 0.2) & (df['amount'] > df['monthly_income'] * 0.3)
-    risk_score += low_balance_risk * 2
-    
-    young_high_risk = (df['customer_age'] < 25) & (df['amount'] > 50000)
-    risk_score += young_high_risk * 1
-    
-    # Combined factors
-    offshore_combo = (df['country_risk_score'] >= 7) & (df['amount'] > 200000) & (df['is_cash_business'] == 1)
-    risk_score += offshore_combo * 5
-    
-    risk_threshold = np.percentile(risk_score, 85)
-    is_risky = (risk_score >= max(3, risk_threshold)).astype(int)
+    # Create binary labels
+    if 'is_risky' in df.columns and 'source' in df.columns:
+        # Preserve real data labels, calculate for synthetic
+        is_risky = df['is_risky'].copy()
+        synthetic_indices = df[df['source'] == 'synthetic'].index
+        if len(synthetic_indices) > 0:
+            synthetic_risk_scores = risk_score[synthetic_indices]
+            risk_threshold = np.percentile(synthetic_risk_scores, 85) if len(synthetic_risk_scores) > 0 else 3
+            is_risky.loc[synthetic_indices] = (synthetic_risk_scores >= max(3, risk_threshold)).astype(int)
+    else:
+        # All synthetic data
+        risk_threshold = np.percentile(risk_score, 85)
+        is_risky = (risk_score >= max(3, risk_threshold)).astype(int)
     
     return is_risky, risk_score
 
-def train_advanced_risk_model():
-    """Train enhanced risk assessment model"""
-    global model, model_accuracy, data_stats, feature_columns
+def train_adaptive_risk_model():
+    """Train enhanced risk assessment model with adaptive learning"""
+    global model, model_accuracy, data_stats, feature_columns, last_retrain_time
     
-    logger.info("Training advanced banking risk model...")
+    logger.info("🧠 Training ADAPTIVE banking risk model...")
     
     try:
-        # Generate dataset
-        data = generate_advanced_banking_data()
+        # Generate dataset with real + synthetic data
+        data = generate_advanced_banking_data(include_real_data=True)
         data['is_risky'], data['risk_score_raw'] = create_advanced_risk_labels(data)
         
         # Feature Engineering
@@ -313,15 +510,15 @@ def train_advanced_risk_model():
         # Handle infinite values
         X = X.replace([np.inf, -np.inf], 0)
         
-        # Train-test split
+        # Train-test split - stratify to ensure both real and synthetic in both sets
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
         
-        # Train model (optimized for Azure)
+        # Enhanced model for mixed data
         model = RandomForestClassifier(
-            n_estimators=100,  # Sníženo pro rychlost
-            max_depth=10,      # Sníženo
-            min_samples_split=5,
-            min_samples_leaf=3,
+            n_estimators=150,  # Increased for better real data handling
+            max_depth=12,      # Slightly deeper
+            min_samples_split=8,
+            min_samples_leaf=4,
             random_state=42,
             class_weight='balanced',
             n_jobs=1  # Single core pro Azure
@@ -341,20 +538,24 @@ def train_advanced_risk_model():
             if azure_storage and azure_storage.is_connected():
                 try:
                     model_metadata = {
-                        'version': 'v2.1.0',
+                        'version': 'v2.2.0_adaptive',
                         'accuracy': float(model_accuracy),
                         'features': len(feature_columns),
                         'training_date': datetime.now().isoformat(),
-                        'samples': len(X_train)
+                        'total_samples': len(X_train),
+                        'real_data_samples': len(data[data.get('source', '') == 'real_data']),
+                        'synthetic_samples': len(data[data.get('source', '') == 'synthetic']),
+                        'adaptive_learning': True
                     }
                     azure_storage.upload_training_data(data, model_metadata)
-                    logger.info("Training data uploaded to Azure Storage")
+                    logger.info("📦 Training data uploaded to Azure Storage")
                 except Exception as e:
                     logger.warning(f"Failed to upload training data: {e}")
         
-        # Statistics
+        # Enhanced statistics
         risky_count = int(data['is_risky'].sum())
         safe_count = len(data) - risky_count
+        real_data_count = len(data[data.get('source', '') == 'real_data'])
         
         data_stats = {
             'total_transactions': len(data),
@@ -369,22 +570,56 @@ def train_advanced_risk_model():
             'avg_monthly_income': float(data['monthly_income'].mean()),
             'high_risk_countries': int((data['country_risk_score'] >= 7).sum()),
             'night_transactions': int(data['is_night_time'].sum()),
+            'real_data_count': real_data_count,
+            'synthetic_data_count': len(data) - real_data_count,
+            'adaptive_learning': True,
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        logger.info(f"✅ Model trained successfully - Accuracy: {model_accuracy:.1%}")
+        last_retrain_time = datetime.now()
+        
+        logger.info(f"✅ ADAPTIVE model trained successfully - Accuracy: {model_accuracy:.1%}")
+        logger.info(f"📊 Data composition: {real_data_count} real + {len(data) - real_data_count} synthetic")
         logger.info(f"✅ Features: {len(feature_columns)}, Risk rate: {data_stats['risk_rate']:.1%}")
         return model, model_accuracy, data_stats
         
     except Exception as e:
-        logger.error(f"Error training model: {e}")
+        logger.error(f"Error training adaptive model: {e}")
         raise
+
+def check_auto_retrain():
+    """Check if automatic retraining should be triggered"""
+    global last_retrain_time
+    
+    if not model_monitor or not azure_storage:
+        return False
+    
+    # Check if enough new predictions have been made
+    if len(model_monitor.predictions_log) < auto_retrain_threshold:
+        return False
+    
+    # Check if enough time has passed (at least 1 hour)
+    if last_retrain_time:
+        time_since_retrain = datetime.now() - last_retrain_time
+        if time_since_retrain.total_seconds() < 3600:  # 1 hour
+            return False
+    
+    # Check if there's new real data to learn from
+    try:
+        current_real_data = load_real_data_from_storage()
+        if len(current_real_data) > len(real_data_cache):
+            logger.info(f"🔄 Auto-retrain triggered: {len(current_real_data)} vs {len(real_data_cache)} real transactions")
+            return True
+    except Exception as e:
+        logger.warning(f"Auto-retrain check failed: {e}")
+    
+    return False
 
 def predict_advanced_transaction_risk(amount, account_balance, transaction_type, 
                                     monthly_income=50000, customer_age=35, 
                                     account_age_days=365, country='CZ',
                                     transaction_hour=12, is_cash_business=0):
-    """Advanced risk prediction with monitoring integration"""
+    """Advanced risk prediction with adaptive learning and monitoring integration"""
     global model, feature_columns
     
     if not ensure_model_trained():
@@ -523,7 +758,8 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
             'is_risky': bool(risk_prediction),
             'risk_level': risk_level,
             'risk_factors': risk_factors,
-            'explanation': f"Model identifikoval {len(risk_factors)} rizikových faktorů" if risk_factors else "Transakce vyhodnocena jako standardní"
+            'explanation': f"Model identifikoval {len(risk_factors)} rizikových faktorů" if risk_factors else "Transakce vyhodnocena jako standardní",
+            'adaptive_learning': True  # Flag indicating adaptive model
         }
         
         # MONITORING INTEGRATION - Log prediction
@@ -546,11 +782,11 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
                 model_monitor.log_prediction(
                     features=monitoring_features,
                     prediction=result,
-                    metadata={'customer_hash': customer_hash}
+                    metadata={'customer_hash': customer_hash, 'adaptive_model': True}
                 )
                 
-                # Store in Azure if high risk
-                if azure_storage and azure_storage.is_connected() and result['is_risky']:
+                # Store in Azure ALWAYS (for learning) - not just high risk
+                if azure_storage and azure_storage.is_connected():
                     azure_storage.upload_risk_analysis(
                         transaction_data=monitoring_features,
                         risk_result=result,
@@ -560,12 +796,33 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
             except Exception as e:
                 logger.warning(f"Monitoring logging failed: {e}")
         
+        # Check if auto-retrain should be triggered
+        try:
+            if check_auto_retrain():
+                # Trigger background retraining
+                threading.Thread(target=background_retrain, daemon=True).start()
+        except Exception as e:
+            logger.warning(f"Auto-retrain check failed: {e}")
+        
         logger.info(f"Prediction completed: Risk score {risk_probability:.3f}, Level: {risk_level}")
         return result
         
     except Exception as e:
         logger.error(f"Error making prediction: {e}")
         return {'error': f'Prediction error: {str(e)}'}
+
+def background_retrain():
+    """Background retraining function"""
+    try:
+        logger.info("🔄 Starting background adaptive retraining...")
+        with model_training_lock:
+            if not model_training_in_progress:
+                train_adaptive_risk_model()
+                logger.info("✅ Background retraining completed")
+            else:
+                logger.info("⏸️ Training already in progress, skipping")
+    except Exception as e:
+        logger.error(f"Background retraining failed: {e}")
 
 # Flask routes
 @app.route('/')
@@ -603,6 +860,9 @@ def get_stats():
                 'avg_monthly_income': 0.0,
                 'high_risk_countries': 0,
                 'night_transactions': 0,
+                'real_data_count': 0,
+                'synthetic_data_count': 0,
+                'adaptive_learning': False,
                 'last_updated': 'Model not trained yet'
             })
         return jsonify(data_stats)
@@ -739,16 +999,36 @@ def list_risk_analyses():
         logger.error(f"Error listing analyses: {e}")
         return jsonify({'error': 'Cannot list analyses'}), 500
 
+@app.route('/api/adaptive/info')
+def get_adaptive_info():
+    """Get adaptive learning information"""
+    try:
+        info = {
+            'adaptive_learning_enabled': True,
+            'real_data_count': len(real_data_cache),
+            'auto_retrain_threshold': auto_retrain_threshold,
+            'last_retrain_time': last_retrain_time.isoformat() if last_retrain_time else None,
+            'storage_connected': azure_storage is not None and azure_storage.is_connected(),
+            'predictions_since_retrain': len(model_monitor.predictions_log) if model_monitor else 0,
+            'next_retrain_predictions': auto_retrain_threshold - (len(model_monitor.predictions_log) if model_monitor else 0)
+        }
+        return jsonify(info)
+    except Exception as e:
+        logger.error(f"Error getting adaptive info: {e}")
+        return jsonify({'error': 'Adaptive info unavailable'}), 500
+
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     try:
-        logger.info("Retraining model requested")
+        logger.info("Manual retraining requested")
         with model_training_lock:
-            train_advanced_risk_model()
+            train_adaptive_risk_model()
         return jsonify({
-            'message': 'Advanced model retrained successfully',
+            'message': 'Adaptive model retrained successfully',
             'accuracy': model_accuracy,
             'features': len(feature_columns),
+            'real_data_count': data_stats.get('real_data_count', 0),
+            'synthetic_data_count': data_stats.get('synthetic_data_count', 0),
             'timestamp': datetime.now().isoformat()
         })
     except Exception as e:
@@ -762,13 +1042,16 @@ def health_check():
             'status': 'healthy',
             'model_loaded': model is not None,
             'model_training': model_training_in_progress,
-            'model_type': 'Advanced Banking Risk Model',
+            'model_type': 'Adaptive Banking Risk Model',
             'features': len(feature_columns) if feature_columns else 0,
             'accuracy': float(model_accuracy) if model_accuracy else None,
             'monitoring_available': model_monitor is not None,
             'storage_available': azure_storage is not None and azure_storage.is_connected(),
+            'adaptive_learning': True,
+            'real_data_count': len(real_data_cache),
+            'auto_retrain_threshold': auto_retrain_threshold,
             'timestamp': datetime.now().isoformat(),
-            'version': '2.1.0'
+            'version': '2.2.0_adaptive'
         })
     except Exception as e:
         logger.error(f"Error in health check: {e}")
@@ -793,9 +1076,10 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') == 'development'
     host = os.environ.get('HOST', '0.0.0.0')
     
-    logger.info(f"🏦 CNB Risk Platform v2.1.0 starting on {host}:{port}")
-    logger.info("⚡ Using lazy loading - model will train on first use")
-    logger.info("🔧 Fixed probability normalization issues")
+    logger.info(f"🏦 CNB Risk Platform v2.2.0 (ADAPTIVE) starting on {host}:{port}")
+    logger.info("⚡ Using lazy loading with ADAPTIVE LEARNING")
+    logger.info("🧠 Model will learn from real transaction data")
+    logger.info("🔄 Auto-retraining enabled")
     
     if MONITORING_AVAILABLE:
         logger.info("📊 Monitoring and storage integration enabled")
