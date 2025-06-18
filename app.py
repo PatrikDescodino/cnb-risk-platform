@@ -1060,6 +1060,18 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
+    
+@app.route('/debug/storage')
+def debug_storage():
+    """Debug storage connection"""
+    connection_string = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
+    return jsonify({
+        'connection_string_exists': connection_string is not None,
+        'connection_string_length': len(connection_string) if connection_string else 0,
+        'connection_string_preview': connection_string[:50] + '...' if connection_string else None,
+        'azure_storage_object': azure_storage is not None,
+        'is_connected': azure_storage.is_connected() if azure_storage else False
+    })
 
 @app.errorhandler(404)
 def not_found(error):
