@@ -1017,6 +1017,64 @@ def get_adaptive_info():
         logger.error(f"Error getting adaptive info: {e}")
         return jsonify({'error': 'Adaptive info unavailable'}), 500
 
+@app.route('/debug/storage')
+def debug_storage():
+    """Debug storage connection"""
+    try:
+        connection_string = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
+        
+        debug_info = {
+            'connection_string_exists': connection_string is not None,
+            'connection_string_length': len(connection_string) if connection_string else 0,
+            'connection_string_preview': connection_string[:50] + '...' if connection_string else None,
+            'azure_storage_object': azure_storage is not None,
+            'is_connected': azure_storage.is_connected() if azure_storage else False,
+            'monitoring_available': MONITORING_AVAILABLE,
+            'environment_variables': {
+                'PORT': os.environ.get('PORT'),
+                'FLASK_ENV': os.environ.get('FLASK_ENV'),
+                'HOST': os.environ.get('HOST')
+            }
+        }
+        
+        # Try to initialize storage if connection string exists but object is None
+        if connection_string and not azure_storage and MONITORING_AVAILABLE:
+            try:
+                from azure_storage import CNBAzureStorage
+                test_storage = CNBAzureStorage(connection_string)
+                debug_info['test_storage_connected'] = test_storage.is_connected()
+            except Exception as e:
+                debug_info['test_storage_error'] = str(e)
+        
+        return jsonify(debug_info)
+        
+    except Exception as e:
+        return jsonify({'error': f'Debug failed: {str(e)}'}), 500
+
+@app.route('/debug/env')
+def debug_environment():
+    """Debug environment variables"""
+    try:
+        # Show all environment variables that start with AZURE or are relevant
+        relevant_env = {}
+        for key, value in os.environ.items():
+            if any(keyword in key.upper() for keyword in ['AZURE', 'STORAGE', 'CNB', 'FLASK', 'PORT']):
+                # Hide sensitive parts of connection strings
+                if 'CONNECTION_STRING' in key or 'KEY' in key:
+                    relevant_env[key] = value[:20] + '...' if value else None
+                else:
+                    relevant_env[key] = value
+        
+        return jsonify({
+            'relevant_environment_variables': relevant_env,
+            'total_env_vars': len(os.environ),
+            'python_path': os.environ.get('PYTHONPATH'),
+            'working_directory': os.getcwd()
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Environment debug failed: {str(e)}'}), 500
+
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     try:
@@ -1060,18 +1118,6 @@ def health_check():
             'error': str(e),
             'timestamp': datetime.now().isoformat()
         }), 500
-    
-@app.route('/debug/storage')
-def debug_storage():
-    """Debug storage connection"""
-    connection_string = os.environ.get('AZURE_STORAGE_CONNECTION_STRING')
-    return jsonify({
-        'connection_string_exists': connection_string is not None,
-        'connection_string_length': len(connection_string) if connection_string else 0,
-        'connection_string_preview': connection_string[:50] + '...' if connection_string else None,
-        'azure_storage_object': azure_storage is not None,
-        'is_connected': azure_storage.is_connected() if azure_storage else False
-    })
 
 @app.errorhandler(404)
 def not_found(error):
