@@ -1,6 +1,6 @@
 """
 CNB Risk Platform - Advanced Banking Risk Model
-Azure-optimized version with lazy loading
+Azure-optimized version with FIXED probabilities
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -73,15 +73,22 @@ def generate_advanced_banking_data():
     # Basic customer data
     customer_ids = np.random.randint(1000, 9999, size=n_rows)
     
-    # Advanced time features
+    # Advanced time features - FIXED PROBABILITIES
     base_date = datetime(2023, 1, 1)
     dates = [base_date + timedelta(days=np.random.randint(0, 730)) for _ in range(n_rows)]
-    hours = np.random.choice(range(24), size=n_rows, p=[
+    
+    # FIXED: Properly normalized probabilities that sum to 1.0
+    hour_probs = np.array([
         0.01, 0.01, 0.005, 0.005, 0.005, 0.01,  # 0-5: Velmi nízká aktivita
         0.02, 0.04, 0.06, 0.08, 0.09, 0.10,     # 6-11: Rostoucí aktivita
         0.08, 0.07, 0.08, 0.09, 0.07, 0.06,     # 12-17: Nejvyšší aktivita
         0.05, 0.04, 0.03, 0.02, 0.015, 0.01     # 18-23: Klesající aktivita
     ])
+    
+    # Normalize to ensure sum = 1.0
+    hour_probs = hour_probs / hour_probs.sum()
+    
+    hours = np.random.choice(range(24), size=n_rows, p=hour_probs)
     
     # Transaction types
     transaction_types = np.random.choice(
@@ -134,10 +141,13 @@ def generate_advanced_banking_data():
     
     account_balances = np.array(account_balances)
     
-    # Geographical risk
+    # Geographical risk - FIXED PROBABILITIES
+    country_probs = np.array([0.70, 0.10, 0.08, 0.05, 0.04, 0.02, 0.01])
+    country_probs = country_probs / country_probs.sum()  # Ensure normalization
+    
     countries = np.random.choice(VALID_COUNTRIES[:-1], 
                                 size=n_rows, 
-                                p=[0.70, 0.10, 0.08, 0.05, 0.04, 0.02, 0.01])
+                                p=country_probs)
     
     country_risk_scores = {
         'CZ': 1, 'SK': 2, 'DE': 1, 'AT': 1, 'PL': 2, 
@@ -236,10 +246,10 @@ def train_advanced_risk_model():
         data['is_night_time'] = (data['transaction_hour'] <= 6) | (data['transaction_hour'] >= 22)
         data['is_business_hours'] = (data['transaction_hour'] >= 9) & (data['transaction_hour'] <= 17)
         
-        # Ratios
-        data['amount_to_income_ratio'] = data['amount'] / data['monthly_income']
-        data['amount_to_balance_ratio'] = data['amount'] / (data['account_balance'] + 1)
-        data['balance_to_income_ratio'] = data['account_balance'] / data['monthly_income']
+        # Ratios with safe division
+        data['amount_to_income_ratio'] = data['amount'] / np.maximum(data['monthly_income'], 1)
+        data['amount_to_balance_ratio'] = data['amount'] / np.maximum(data['account_balance'] + 1, 1)
+        data['balance_to_income_ratio'] = data['account_balance'] / np.maximum(data['monthly_income'], 1)
         data['frequency_velocity'] = data['transactions_last_7d'] / 7
         
         # Categories
@@ -274,7 +284,11 @@ def train_advanced_risk_model():
         
         # Validate data
         if X.isnull().any().any():
+            logger.warning("NaN values detected, filling with 0")
             X = X.fillna(0)
+        
+        # Handle infinite values
+        X = X.replace([np.inf, -np.inf], 0)
         
         # Train-test split
         X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
@@ -315,7 +329,8 @@ def train_advanced_risk_model():
             'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
         }
         
-        logger.info(f"Model trained successfully - Accuracy: {model_accuracy:.1%}")
+        logger.info(f"✅ Model trained successfully - Accuracy: {model_accuracy:.1%}")
+        logger.info(f"✅ Features: {len(feature_columns)}, Risk rate: {data_stats['risk_rate']:.1%}")
         return model, model_accuracy, data_stats
         
     except Exception as e:
@@ -330,10 +345,10 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
     global model, feature_columns
     
     if not ensure_model_trained():
-        return {'error': 'Model not available, please try again in a moment'}
+        return {'error': 'Model training in progress, please try again in a moment'}
     
     if model is None:
-        return {'error': 'Model not trained'}
+        return {'error': 'Model not available'}
     
     try:
         # Country risk mapping
@@ -343,7 +358,7 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
         }
         country_risk_score = country_risk_map.get(country, 5)
         
-        # Derived features
+        # Derived features with safe division
         amount_to_income_ratio = amount / max(monthly_income, 1)
         amount_to_balance_ratio = amount / max(account_balance + 1, 1)
         balance_to_income_ratio = account_balance / max(monthly_income, 1)
@@ -427,6 +442,9 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
         
         # Create array
         features = np.array([[feature_dict[col] for col in feature_columns]])
+        
+        # Handle any remaining NaN/inf values
+        features = np.nan_to_num(features, nan=0.0, posinf=0.0, neginf=0.0)
         
         # Predict
         risk_probability = model.predict_proba(features)[0][1]
@@ -585,11 +603,12 @@ def health_check():
         return jsonify({
             'status': 'healthy',
             'model_loaded': model is not None,
+            'model_training': model_training_in_progress,
             'model_type': 'Advanced Banking Risk Model',
             'features': len(feature_columns) if feature_columns else 0,
             'accuracy': float(model_accuracy) if model_accuracy else None,
             'timestamp': datetime.now().isoformat(),
-            'version': '2.0.0'
+            'version': '2.1.0'
         })
     except Exception as e:
         logger.error(f"Error in health check: {e}")
@@ -614,8 +633,9 @@ if __name__ == '__main__':
     debug = os.environ.get('FLASK_ENV') == 'development'
     host = os.environ.get('HOST', '0.0.0.0')
     
-    logger.info(f"🏦 CNB Risk Platform starting on {host}:{port}")
+    logger.info(f"🏦 CNB Risk Platform v2.1.0 starting on {host}:{port}")
     logger.info("⚡ Using lazy loading - model will train on first use")
+    logger.info("🔧 Fixed probability normalization issues")
     
     try:
         app.run(host=host, port=port, debug=debug)
