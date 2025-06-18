@@ -1,6 +1,6 @@
 """
 CNB Risk Platform - Advanced Banking Risk Model
-Azure-optimized version with FIXED probabilities
+Azure-optimized version with MONITORING INTEGRATION
 """
 
 from flask import Flask, render_template, request, jsonify
@@ -16,6 +16,15 @@ import os
 import logging
 import threading
 
+# Import monitoring and storage modules
+try:
+    from model_monitoring import CNBModelMonitor
+    from azure_storage import CNBAzureStorage
+    MONITORING_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ Monitoring modules not available: {e}")
+    MONITORING_AVAILABLE = False
+
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -30,6 +39,20 @@ data_stats = {}
 feature_columns = []
 model_training_lock = threading.Lock()
 model_training_in_progress = False
+
+# Initialize monitoring and storage
+model_monitor = None
+azure_storage = None
+
+if MONITORING_AVAILABLE:
+    try:
+        model_monitor = CNBModelMonitor(window_size=100, drift_threshold=0.1)
+        azure_storage = CNBAzureStorage()
+        logger.info("✅ Monitoring and storage initialized")
+    except Exception as e:
+        logger.warning(f"⚠️ Monitoring initialization failed: {e}")
+        model_monitor = None
+        azure_storage = None
 
 # Constants
 VALID_TRANSACTION_TYPES = ['deposit', 'withdrawal', 'transfer', 'payment', 'card_payment']
@@ -309,6 +332,26 @@ def train_advanced_risk_model():
         predictions = model.predict(X_test)
         model_accuracy = accuracy_score(y_test, predictions)
         
+        # MONITORING INTEGRATION - Set baseline performance
+        if model_monitor:
+            model_monitor.set_baseline_performance(model_accuracy)
+            model_monitor.model = model  # Attach model to monitor
+            
+            # Store training data in Azure if available
+            if azure_storage and azure_storage.is_connected():
+                try:
+                    model_metadata = {
+                        'version': 'v2.1.0',
+                        'accuracy': float(model_accuracy),
+                        'features': len(feature_columns),
+                        'training_date': datetime.now().isoformat(),
+                        'samples': len(X_train)
+                    }
+                    azure_storage.upload_training_data(data, model_metadata)
+                    logger.info("Training data uploaded to Azure Storage")
+                except Exception as e:
+                    logger.warning(f"Failed to upload training data: {e}")
+        
         # Statistics
         risky_count = int(data['is_risky'].sum())
         safe_count = len(data) - risky_count
@@ -341,7 +384,7 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
                                     monthly_income=50000, customer_age=35, 
                                     account_age_days=365, country='CZ',
                                     transaction_hour=12, is_cash_business=0):
-    """Advanced risk prediction"""
+    """Advanced risk prediction with monitoring integration"""
     global model, feature_columns
     
     if not ensure_model_trained():
@@ -483,6 +526,40 @@ def predict_advanced_transaction_risk(amount, account_balance, transaction_type,
             'explanation': f"Model identifikoval {len(risk_factors)} rizikových faktorů" if risk_factors else "Transakce vyhodnocena jako standardní"
         }
         
+        # MONITORING INTEGRATION - Log prediction
+        if model_monitor:
+            try:
+                # Prepare features for monitoring (only relevant ones)
+                monitoring_features = {
+                    'amount': amount,
+                    'account_balance': account_balance,
+                    'monthly_income': monthly_income,
+                    'transaction_type': transaction_type,
+                    'country': country,
+                    'transaction_hour': transaction_hour
+                }
+                
+                # Generate customer hash for privacy
+                customer_hash = hash(f"{amount}_{account_balance}_{datetime.now().timestamp()}") % 1000000
+                
+                # Log to monitoring system
+                model_monitor.log_prediction(
+                    features=monitoring_features,
+                    prediction=result,
+                    metadata={'customer_hash': customer_hash}
+                )
+                
+                # Store in Azure if high risk
+                if azure_storage and azure_storage.is_connected() and result['is_risky']:
+                    azure_storage.upload_risk_analysis(
+                        transaction_data=monitoring_features,
+                        risk_result=result,
+                        customer_id=str(customer_hash)
+                    )
+                
+            except Exception as e:
+                logger.warning(f"Monitoring logging failed: {e}")
+        
         logger.info(f"Prediction completed: Risk score {risk_probability:.3f}, Level: {risk_level}")
         return result
         
@@ -498,6 +575,15 @@ def dashboard():
     except Exception as e:
         logger.error(f"Error rendering dashboard: {e}")
         return jsonify({'error': 'Dashboard unavailable'}), 500
+
+@app.route('/monitoring')
+def monitoring_dashboard():
+    """Monitoring dashboard page"""
+    try:
+        return render_template('monitoring.html')
+    except Exception as e:
+        logger.error(f"Error rendering monitoring dashboard: {e}")
+        return jsonify({'error': 'Monitoring dashboard unavailable'}), 500
 
 @app.route('/api/stats')
 def get_stats():
@@ -581,6 +667,78 @@ def predict_risk():
         logger.error(f"Error in prediction endpoint: {e}")
         return jsonify({'error': 'Internal server error'}), 500
 
+# MONITORING API ENDPOINTS
+@app.route('/api/monitoring/dashboard')
+def get_monitoring_dashboard():
+    """Get monitoring dashboard data"""
+    try:
+        if not model_monitor:
+            return jsonify({'error': 'Monitoring not available'})
+        
+        dashboard_data = model_monitor.get_monitoring_dashboard_data()
+        return jsonify(dashboard_data)
+        
+    except Exception as e:
+        logger.error(f"Error getting monitoring dashboard: {e}")
+        return jsonify({'error': 'Monitoring dashboard unavailable'}), 500
+
+@app.route('/api/monitoring/report')
+def get_monitoring_report():
+    """Get comprehensive monitoring report"""
+    try:
+        if not model_monitor:
+            return jsonify({'error': 'Monitoring not available'})
+        
+        report = model_monitor.generate_monitoring_report()
+        return jsonify(report)
+        
+    except Exception as e:
+        logger.error(f"Error generating monitoring report: {e}")
+        return jsonify({'error': 'Monitoring report unavailable'}), 500
+
+@app.route('/api/monitoring/drift')
+def get_drift_analysis():
+    """Get model drift analysis"""
+    try:
+        if not model_monitor:
+            return jsonify({'error': 'Monitoring not available'})
+        
+        drift_analysis = model_monitor.detect_model_drift()
+        return jsonify(drift_analysis)
+        
+    except Exception as e:
+        logger.error(f"Error getting drift analysis: {e}")
+        return jsonify({'error': 'Drift analysis unavailable'}), 500
+
+@app.route('/api/storage/stats')
+def get_storage_stats():
+    """Get Azure storage statistics"""
+    try:
+        if not azure_storage:
+            return jsonify({'error': 'Azure storage not available'})
+        
+        stats = azure_storage.get_storage_stats()
+        return jsonify(stats)
+        
+    except Exception as e:
+        logger.error(f"Error getting storage stats: {e}")
+        return jsonify({'error': 'Storage stats unavailable'}), 500
+
+@app.route('/api/storage/analyses')
+def list_risk_analyses():
+    """List recent risk analyses from storage"""
+    try:
+        if not azure_storage:
+            return jsonify({'error': 'Azure storage not available'})
+        
+        limit = request.args.get('limit', 10, type=int)
+        analyses = azure_storage.list_risk_analyses(limit=limit)
+        return jsonify(analyses)
+        
+    except Exception as e:
+        logger.error(f"Error listing analyses: {e}")
+        return jsonify({'error': 'Cannot list analyses'}), 500
+
 @app.route('/api/retrain', methods=['POST'])
 def retrain_model():
     try:
@@ -607,6 +765,8 @@ def health_check():
             'model_type': 'Advanced Banking Risk Model',
             'features': len(feature_columns) if feature_columns else 0,
             'accuracy': float(model_accuracy) if model_accuracy else None,
+            'monitoring_available': model_monitor is not None,
+            'storage_available': azure_storage is not None and azure_storage.is_connected(),
             'timestamp': datetime.now().isoformat(),
             'version': '2.1.0'
         })
@@ -636,6 +796,11 @@ if __name__ == '__main__':
     logger.info(f"🏦 CNB Risk Platform v2.1.0 starting on {host}:{port}")
     logger.info("⚡ Using lazy loading - model will train on first use")
     logger.info("🔧 Fixed probability normalization issues")
+    
+    if MONITORING_AVAILABLE:
+        logger.info("📊 Monitoring and storage integration enabled")
+    else:
+        logger.warning("⚠️ Monitoring modules not available - running in basic mode")
     
     try:
         app.run(host=host, port=port, debug=debug)
