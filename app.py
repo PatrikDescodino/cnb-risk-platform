@@ -1148,4 +1148,4 @@ if __name__ == '__main__':
         app.run(host=host, port=port, debug=debug)
     except Exception as e:
         logger.error(f"Failed to start server: {e}")
-        exit(1)
+        exit(1)# Force redeploy
