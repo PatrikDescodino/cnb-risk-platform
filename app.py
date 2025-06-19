@@ -203,11 +203,10 @@ def enhance_real_data_with_features(real_df):
     default_features = {
         'customer_id': lambda: np.random.randint(1000, 9999),
         'transaction_date': lambda: datetime.now() - timedelta(days=np.random.randint(0, 30)),
-        'account_balance': lambda row: max(row.get('amount', 50000) * np.random.uniform(0.5, 3.0), 1000),
-        'monthly_income': lambda row: estimate_income_from_amount(row.get('amount', 50000)),
-        'customer_age': lambda: np.random.randint(25, 65),
-        'account_age_days': lambda: np.random.randint(90, 1825),
-        'country_risk_score': lambda row: get_country_risk_score(row.get('country', 'CZ')),
+        'account_balance': lambda: max(50000 * np.random.uniform(0.5, 3.0), 1000),
+        'monthly_income': lambda: estimate_income_from_amount(50000),
+        'customer_profile': lambda: estimate_profile_from_income(50000),
+        'country_risk_score': lambda: get_country_risk_score('CZ'),
         'transactions_last_7d': lambda: np.random.randint(1, 8),
         'transactions_last_30d': lambda: np.random.randint(5, 25),
         'customer_profile': lambda row: estimate_profile_from_income(row.get('monthly_income', 50000)),
@@ -217,10 +216,6 @@ def enhance_real_data_with_features(real_df):
     for col, default_func in default_features.items():
         if col not in enhanced_df.columns:
             if callable(default_func):
-                if col in ['account_balance', 'monthly_income', 'customer_profile']:
-                    # These depend on other columns
-                    enhanced_df[col] = enhanced_df.apply(default_func, axis=1)
-                else:
                     enhanced_df[col] = [default_func() for _ in range(len(enhanced_df))]
             else:
                 enhanced_df[col] = default_func
