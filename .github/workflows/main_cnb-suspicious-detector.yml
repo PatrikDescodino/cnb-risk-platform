@@ -171,6 +171,7 @@ jobs:
               echo "API validation failed after 3 attempts"
               exit 1
             fi
+          done
           
 
       - name: Deployment summary
