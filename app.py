@@ -199,26 +199,73 @@ def enhance_real_data_with_features(real_df):
     """Enhance real data with missing features using reasonable defaults"""
     enhanced_df = real_df.copy()
     
-    # Add missing features with realistic defaults
-    default_features = {
-        'customer_id': lambda: np.random.randint(1000, 9999),
-        'transaction_date': lambda: datetime.now() - timedelta(days=np.random.randint(0, 30)),
-        'account_balance': lambda: max(50000 * np.random.uniform(0.5, 3.0), 1000),
-        'monthly_income': lambda: estimate_income_from_amount(50000),
-        'customer_profile': lambda: estimate_profile_from_income(50000),
-        'country_risk_score': lambda: get_country_risk_score('CZ'),
-        'transactions_last_7d': lambda: np.random.randint(1, 8),
-        'transactions_last_30d': lambda: np.random.randint(5, 25),
-        'customer_profile': lambda row: estimate_profile_from_income(row.get('monthly_income', 50000)),
-        'is_cash_business': lambda: np.random.choice([0, 1], p=[0.85, 0.15])
-    }
+    # Get the number of rows
+    n_rows = len(enhanced_df)
     
-    for col, default_func in default_features.items():
-        if col not in enhanced_df.columns:
-            if callable(default_func):
-                    enhanced_df[col] = [default_func() for _ in range(len(enhanced_df))]
-            else:
-                enhanced_df[col] = default_func
+    # Add missing features with realistic defaults
+    if 'customer_id' not in enhanced_df.columns:
+        enhanced_df['customer_id'] = np.random.randint(1000, 9999, size=n_rows)
+    
+    if 'transaction_date' not in enhanced_df.columns:
+        enhanced_df['transaction_date'] = [
+            datetime.now() - timedelta(days=np.random.randint(0, 30)) 
+            for _ in range(n_rows)
+        ]
+    
+    if 'account_balance' not in enhanced_df.columns:
+        # Use amount from real data if available, otherwise default
+        account_balances = []
+        for _, row in enhanced_df.iterrows():
+            amount = row.get('amount', 50000)
+            balance = max(amount * np.random.uniform(0.5, 3.0), 1000)
+            account_balances.append(balance)
+        enhanced_df['account_balance'] = account_balances
+    
+    if 'monthly_income' not in enhanced_df.columns:
+        # Estimate income based on transaction amount
+        monthly_incomes = []
+        for _, row in enhanced_df.iterrows():
+            amount = row.get('amount', 50000)
+            income = estimate_income_from_amount(amount)
+            monthly_incomes.append(income)
+        enhanced_df['monthly_income'] = monthly_incomes
+    
+    if 'customer_age' not in enhanced_df.columns:
+        enhanced_df['customer_age'] = np.random.randint(25, 65, size=n_rows)
+    
+    if 'account_age_days' not in enhanced_df.columns:
+        enhanced_df['account_age_days'] = np.random.randint(90, 1825, size=n_rows)
+    
+    if 'country_risk_score' not in enhanced_df.columns:
+        # Get country risk score from real data if available
+        country_risk_scores = []
+        for _, row in enhanced_df.iterrows():
+            country = row.get('country', 'CZ')
+            risk_score = get_country_risk_score(country)
+            country_risk_scores.append(risk_score)
+        enhanced_df['country_risk_score'] = country_risk_scores
+    
+    if 'transactions_last_7d' not in enhanced_df.columns:
+        enhanced_df['transactions_last_7d'] = np.random.randint(1, 8, size=n_rows)
+    
+    if 'transactions_last_30d' not in enhanced_df.columns:
+        enhanced_df['transactions_last_30d'] = np.random.randint(5, 25, size=n_rows)
+    
+    if 'customer_profile' not in enhanced_df.columns:
+        # Estimate profile based on income
+        customer_profiles = []
+        for _, row in enhanced_df.iterrows():
+            income = row.get('monthly_income', 50000)
+            profile = estimate_profile_from_income(income)
+            customer_profiles.append(profile)
+        enhanced_df['customer_profile'] = customer_profiles
+    
+    if 'is_cash_business' not in enhanced_df.columns:
+        enhanced_df['is_cash_business'] = np.random.choice([0, 1], size=n_rows, p=[0.85, 0.15])
+    
+    # Ensure source column exists
+    if 'source' not in enhanced_df.columns:
+        enhanced_df['source'] = 'real_data'
     
     return enhanced_df
 
