@@ -24,3 +24,4 @@ cryptography==41.0.7
 
 # Environment management
 python-dotenv==1.0.0
+azure-storage-blob==12.18.3
