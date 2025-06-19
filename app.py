@@ -776,6 +776,62 @@ def train_adaptive_risk_model():
         logger.info(f"Features: {len(feature_columns)}")
         logger.info(f"Test predictions distribution: {np.bincount(predictions)}")
         
+        # TADY BYLA CHYBA - CHYBĚLA CELÁ TATO ČÁST:
+        
+        # MONITORING INTEGRATION - Set baseline performance
+        if model_monitor:
+            model_monitor.set_baseline_performance(model_accuracy)
+            model_monitor.model = model  # Attach model to monitor
+            
+            # Store training data in Azure if available
+            if azure_storage and azure_storage.is_connected():
+                try:
+                    model_metadata = {
+                        'version': 'v2.2.0_adaptive',
+                        'accuracy': float(model_accuracy),
+                        'features': len(feature_columns),
+                        'training_date': datetime.now().isoformat(),
+                        'total_samples': len(X_train),
+                        'real_data_samples': len(data[data.get('source', '') == 'real_data']),
+                        'synthetic_samples': len(data[data.get('source', '') == 'synthetic']),
+                        'adaptive_learning': True
+                    }
+                    azure_storage.upload_training_data(data, model_metadata)
+                    logger.info("📦 Training data uploaded to Azure Storage")
+                except Exception as e:
+                    logger.warning(f"Failed to upload training data: {e}")
+        
+        # Enhanced statistics - TOHLE BYLO KLÍČOVÉ ČO CHYBĚLO
+        risky_count = int(data['is_risky'].sum())
+        safe_count = len(data) - risky_count
+        real_data_count = len(data[data.get('source', '') == 'real_data'])
+        
+        data_stats = {
+            'total_transactions': len(data),
+            'risky_transactions': risky_count,
+            'safe_transactions': safe_count,
+            'risk_rate': float(risky_count / len(data)),
+            'model_accuracy': float(model_accuracy),
+            'test_samples': len(X_test),
+            'feature_count': len(feature_columns),
+            'avg_transaction_amount': float(data['amount'].mean()),
+            'avg_account_balance': float(data['account_balance'].mean()),
+            'avg_monthly_income': float(data['monthly_income'].mean()),
+            'high_risk_countries': int((data['country_risk_score'] >= 7).sum()),
+            'night_transactions': int(data['is_night_time'].sum()),
+            'real_data_count': real_data_count,
+            'synthetic_data_count': len(data) - real_data_count,
+            'adaptive_learning': True,
+            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+        }
+        
+        last_retrain_time = datetime.now()
+        
+        logger.info(f"✅ ADAPTIVE model trained successfully - Accuracy: {model_accuracy:.1%}")
+        logger.info(f"📊 Data composition: {real_data_count} real + {len(data) - real_data_count} synthetic")
+        logger.info(f"✅ Features: {len(feature_columns)}, Risk rate: {data_stats['risk_rate']:.1%}")
+        return model, model_accuracy, data_stats
+        
     except Exception as e:
         logger.error(f"Error training adaptive model: {e}")
         raise
