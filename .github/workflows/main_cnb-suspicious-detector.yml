@@ -11,7 +11,7 @@ on:
 
 env:
   PYTHON_VERSION: '3.9'
-  AZURE_WEBAPP_NAME: 'cnb-suspicious-detector'
+  AZURE_WEBAPP_NAME: 'cnb-suspicious-detector-b7hjaafcejcmaga6.canadacentral-01.azurewebsites.net'
 
 jobs:
   # Continuous Integration
