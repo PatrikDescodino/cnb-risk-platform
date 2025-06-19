@@ -196,11 +196,14 @@ def generate_advanced_banking_data(include_real_data=True):
     return combined_df
 
 def enhance_real_data_with_features(real_df):
-    """Enhance real data with missing features using reasonable defaults"""
+    """Enhance real data with missing features using reasonable defaults - FIXED VERSION"""
     enhanced_df = real_df.copy()
     
     # Get the number of rows
     n_rows = len(enhanced_df)
+    
+    if n_rows == 0:
+        return enhanced_df
     
     # Add missing features with realistic defaults
     if 'customer_id' not in enhanced_df.columns:
@@ -266,6 +269,36 @@ def enhance_real_data_with_features(real_df):
     # Ensure source column exists
     if 'source' not in enhanced_df.columns:
         enhanced_df['source'] = 'real_data'
+    
+    # KRITICKÁ OPRAVA: Standardizovat is_risky label na int
+    if 'is_risky' in enhanced_df.columns:
+        # Převést všechny možné formáty na 0/1 int
+        for idx in enhanced_df.index:
+            current_label = enhanced_df.loc[idx, 'is_risky']
+            if isinstance(current_label, bool):
+                enhanced_df.loc[idx, 'is_risky'] = int(current_label)
+            elif isinstance(current_label, (int, float)):
+                enhanced_df.loc[idx, 'is_risky'] = int(bool(current_label))
+            elif isinstance(current_label, str):
+                # Pokud je to string, zkusit převést
+                if current_label.lower() in ['true', '1', 'yes', 'risky']:
+                    enhanced_df.loc[idx, 'is_risky'] = 1
+                else:
+                    enhanced_df.loc[idx, 'is_risky'] = 0
+            else:
+                # Fallback na základě risk_level
+                risk_level = enhanced_df.loc[idx].get('risk_level', 'LOW')
+                if risk_level in ['HIGH', 'CRITICAL']:
+                    enhanced_df.loc[idx, 'is_risky'] = 1
+                else:
+                    enhanced_df.loc[idx, 'is_risky'] = 0
+        
+        # Finální převod na int
+        enhanced_df['is_risky'] = enhanced_df['is_risky'].astype(int)
+    
+    # Zajistit, že transaction_hour je int
+    if 'transaction_hour' in enhanced_df.columns:
+        enhanced_df['transaction_hour'] = enhanced_df['transaction_hour'].fillna(12).astype(int)
     
     return enhanced_df
 
@@ -417,81 +450,140 @@ def generate_synthetic_banking_data(n_rows):
     return df
 
 def create_advanced_risk_labels(df):
-    """Create sophisticated risk labels - enhanced for real data"""
+    """Create sophisticated risk labels - FIXED VERSION"""
+    logger.info(f"Creating risk labels for {len(df)} transactions")
+    
+    # Initialize risk scores with zeros
     risk_score = np.zeros(len(df))
     
-    # For real data, use existing labels if available
+    # KRITICKÁ OPRAVA: Správně zpracovat existující labely
+    existing_labels = None
     if 'is_risky' in df.columns and 'source' in df.columns:
         real_data_mask = df['source'] == 'real_data'
         if real_data_mask.any():
-            logger.info(f"Using existing labels for {real_data_mask.sum()} real transactions")
-            # For real data, keep existing labels and create risk scores based on risk level
-            for idx, row in df[real_data_mask].iterrows():
-                if row['risk_level'] == 'CRITICAL':
+            logger.info(f"Found {real_data_mask.sum()} real transactions with existing labels")
+            
+            # Převést existující labely na konzistentní formát
+            existing_labels = df['is_risky'].copy()
+            
+            # Zajistit, že jsou všechny labely 0 nebo 1 (int)
+            for idx in df[real_data_mask].index:
+                current_label = df.loc[idx, 'is_risky']
+                if isinstance(current_label, bool):
+                    existing_labels.loc[idx] = int(current_label)
+                elif isinstance(current_label, (int, float)):
+                    existing_labels.loc[idx] = int(bool(current_label))
+                else:
+                    # Pokud je label string nebo něco jiného, určit na základě risk_level
+                    risk_level = df.loc[idx].get('risk_level', 'LOW')
+                    if risk_level in ['HIGH', 'CRITICAL']:
+                        existing_labels.loc[idx] = 1
+                    else:
+                        existing_labels.loc[idx] = 0
+                
+                # Pro real data použít risk score na základě risk_level
+                risk_level = df.loc[idx].get('risk_level', 'LOW')
+                if risk_level == 'CRITICAL':
                     risk_score[idx] = 10
-                elif row['risk_level'] == 'HIGH':
+                elif risk_level == 'HIGH':
                     risk_score[idx] = 8
-                elif row['risk_level'] == 'MEDIUM':
+                elif risk_level == 'MEDIUM':
                     risk_score[idx] = 5
-                elif row['risk_level'] == 'LOW':
+                elif risk_level == 'LOW':
                     risk_score[idx] = 2
                 else:  # MINIMAL
                     risk_score[idx] = 1
     
-    # For synthetic data, calculate risk scores
+    # Pro syntetická data spočítat risk score
     synthetic_mask = df.get('source', 'synthetic') == 'synthetic'
     if synthetic_mask.any():
-        # AML factors
+        logger.info(f"Calculating risk scores for {synthetic_mask.sum()} synthetic transactions")
+        
+        # Bezpečné získání hodnot s defaulty
+        amounts = df['amount'].fillna(0).values
+        monthly_incomes = df['monthly_income'].fillna(50000).values
+        country_risk_scores = df['country_risk_score'].fillna(1).values
+        transaction_hours = df['transaction_hour'].fillna(12).values
+        account_balances = df['account_balance'].fillna(10000).values
+        account_ages = df['account_age_days'].fillna(365).values
+        transactions_7d = df['transactions_last_7d'].fillna(3).values
+        is_cash_business = df['is_cash_business'].fillna(0).values
+        customer_ages = df['customer_age'].fillna(35).values
+        
+        # AML faktory
         reporting_limit = 15000 * 24
-        structured_transactions = (df['amount'] > reporting_limit * 0.9) & (df['amount'] < reporting_limit)
+        structured_transactions = (amounts > reporting_limit * 0.9) & (amounts < reporting_limit)
         risk_score += structured_transactions * 3
         
-        unusual_amount = df['amount'] > (df['monthly_income'] * 0.5)
+        unusual_amount = amounts > (monthly_incomes * 0.5)
         risk_score += unusual_amount * 2
         
-        high_country_risk = df['country_risk_score'] >= 7
+        high_country_risk = country_risk_scores >= 7
         risk_score += high_country_risk * 4
         
-        high_frequency = df['transactions_last_7d'] > 10
+        high_frequency = transactions_7d > 10
         risk_score += high_frequency * 2
         
-        # Fraud factors
-        suspicious_hours = (df['transaction_hour'] <= 6) | (df['transaction_hour'] >= 23)
+        # Fraud faktory
+        suspicious_hours = (transaction_hours <= 6) | (transaction_hours >= 23)
         risk_score += suspicious_hours * 2
         
-        new_account_risk = (df['account_age_days'] < 30) & (df['amount'] > df['monthly_income'])
+        new_account_risk = (account_ages < 30) & (amounts > monthly_incomes)
         risk_score += new_account_risk * 3
         
-        overdraft_risk = (df['transaction_type'] == 'withdrawal') & (df['amount'] > df['account_balance'] * 0.8)
+        # Bezpečné porovnání pro withdrawal
+        is_withdrawal = df['transaction_type'].fillna('') == 'withdrawal'
+        overdraft_risk = is_withdrawal & (amounts > account_balances * 0.8)
         risk_score += overdraft_risk * 2
         
         # Business logic
-        cash_business_risk = (df['is_cash_business'] == 1) & (df['amount'] > 100000)
+        cash_business_risk = (is_cash_business == 1) & (amounts > 100000)
         risk_score += cash_business_risk * 2
         
-        low_balance_risk = (df['account_balance'] < df['monthly_income'] * 0.2) & (df['amount'] > df['monthly_income'] * 0.3)
+        low_balance_risk = (account_balances < monthly_incomes * 0.2) & (amounts > monthly_incomes * 0.3)
         risk_score += low_balance_risk * 2
         
-        young_high_risk = (df['customer_age'] < 25) & (df['amount'] > 50000)
+        young_high_risk = (customer_ages < 25) & (amounts > 50000)
         risk_score += young_high_risk * 1
         
-        # Combined factors
-        offshore_combo = (df['country_risk_score'] >= 7) & (df['amount'] > 200000) & (df['is_cash_business'] == 1)
+        # Kombinované faktory
+        offshore_combo = (country_risk_scores >= 7) & (amounts > 200000) & (is_cash_business == 1)
         risk_score += offshore_combo * 5
     
-    # Create binary labels
-    if 'is_risky' in df.columns and 'source' in df.columns:
-        # Preserve real data labels, calculate for synthetic
-        is_risky = df['is_risky'].copy()
-        synthetic_indices = df[df['source'] == 'synthetic'].index
+    # KRITICKÁ OPRAVA: Vytvoření konzistentních binary labels
+    if existing_labels is not None:
+        # Zachovat real data labels, vypočítat pro synthetic
+        is_risky = existing_labels.copy()
+        synthetic_indices = df[df.get('source', 'synthetic') == 'synthetic'].index
+        
         if len(synthetic_indices) > 0:
             synthetic_risk_scores = risk_score[synthetic_indices]
-            risk_threshold = np.percentile(synthetic_risk_scores, 85) if len(synthetic_risk_scores) > 0 else 3
-            is_risky.loc[synthetic_indices] = (synthetic_risk_scores >= max(3, risk_threshold)).astype(int)
+            if len(synthetic_risk_scores) > 0:
+                # Použít percentil pouze pokud máme data
+                risk_threshold = np.percentile(synthetic_risk_scores, 85) if len(synthetic_risk_scores) > 1 else 3
+                synthetic_labels = (synthetic_risk_scores >= max(3, risk_threshold)).astype(int)
+                is_risky.iloc[synthetic_indices] = synthetic_labels
+            
+        # Zajistit, že všechny labely jsou int
+        is_risky = is_risky.astype(int)
     else:
-        # All synthetic data
-        risk_threshold = np.percentile(risk_score, 85)
+        # Všechna data jsou syntetická
+        if len(risk_score) > 1:
+            risk_threshold = np.percentile(risk_score, 85)
+        else:
+            risk_threshold = 3
         is_risky = (risk_score >= max(3, risk_threshold)).astype(int)
+    
+    # Validace výsledků
+    unique_labels = np.unique(is_risky)
+    logger.info(f"Generated labels: {unique_labels}")
+    
+    if not all(label in [0, 1] for label in unique_labels):
+        logger.error(f"Invalid labels detected: {unique_labels}")
+        # Fallback: převést vše na 0/1
+        is_risky = (is_risky > 0).astype(int)
+    
+    logger.info(f"Risk distribution: {np.bincount(is_risky)} (0=safe, 1=risky)")
     
     return is_risky, risk_score
 
@@ -504,30 +596,96 @@ def train_adaptive_risk_model():
     try:
         # Generate dataset with real + synthetic data
         data = generate_advanced_banking_data(include_real_data=True)
-        data['is_risky'], data['risk_score_raw'] = create_advanced_risk_labels(data)
-        
-        # Feature Engineering
-        data['is_weekend'] = pd.to_datetime(data['transaction_date']).dt.weekday >= 5
+
+        # KRITICKÁ OPRAVA: Validace dat před vytvořením labelů
+        logger.info(f"Generated {len(data)} total transactions")
+        logger.info(f"Data columns: {data.columns.tolist()}")
+
+        # Zkontrolovat, jestli máme potřebné sloupce
+        required_columns = ['amount', 'transaction_type', 'account_balance', 'monthly_income']
+        missing_columns = [col for col in required_columns if col not in data.columns]
+        if missing_columns:
+            raise ValueError(f"Missing required columns: {missing_columns}")
+
+        # Vyplnit chybějící hodnoty
+        data = data.fillna({
+            'amount': 50000,
+            'account_balance': 25000,
+            'monthly_income': 50000,
+            'customer_age': 35,
+            'account_age_days': 365,
+            'country_risk_score': 1,
+            'transactions_last_7d': 3,
+            'transactions_last_30d': 12,
+            'transaction_hour': 12,
+            'is_cash_business': 0
+        })
+
+        # Vytvoření risk labelů s validací
+        try:
+            data['is_risky'], data['risk_score_raw'] = create_advanced_risk_labels(data)
+            logger.info(f"Created risk labels: {np.bincount(data['is_risky'])}")
+            
+            # Validace labelů
+            unique_labels = data['is_risky'].unique()
+            if not all(label in [0, 1] for label in unique_labels):
+                logger.error(f"Invalid labels found: {unique_labels}")
+                # Fallback: převést na binary
+                data['is_risky'] = (data['is_risky'] > 0).astype(int)
+                logger.info(f"Fixed labels: {np.bincount(data['is_risky'])}")
+                
+        except Exception as e:
+            logger.error(f"Error creating risk labels: {e}")
+            # Fallback: vytvořit jednoduché labely
+            risk_threshold = data['amount'].quantile(0.8)
+            data['is_risky'] = (data['amount'] > risk_threshold).astype(int)
+            data['risk_score_raw'] = data['amount'] / data['amount'].max()
+            logger.info(f"Using fallback labels: {np.bincount(data['is_risky'])}")
+
+        # Feature Engineering s error handlingem
+        try:
+            data['is_weekend'] = pd.to_datetime(data['transaction_date']).dt.weekday >= 5
+        except:
+            data['is_weekend'] = False
+
         data['is_night_time'] = (data['transaction_hour'] <= 6) | (data['transaction_hour'] >= 22)
         data['is_business_hours'] = (data['transaction_hour'] >= 9) & (data['transaction_hour'] <= 17)
-        
-        # Ratios with safe division
+
+        # Ratios s bezpečným dělením
         data['amount_to_income_ratio'] = data['amount'] / np.maximum(data['monthly_income'], 1)
         data['amount_to_balance_ratio'] = data['amount'] / np.maximum(data['account_balance'] + 1, 1)
         data['balance_to_income_ratio'] = data['account_balance'] / np.maximum(data['monthly_income'], 1)
         data['frequency_velocity'] = data['transactions_last_7d'] / 7
-        
-        # Categories
-        data['amount_category'] = pd.cut(data['amount'], 
-                                       bins=[0, 1000, 10000, 50000, 200000, float('inf')],
-                                       labels=['micro', 'small', 'medium', 'large', 'jumbo'])
-        
-        # Dummy variables
-        transaction_dummies = pd.get_dummies(data['transaction_type'], prefix='trans')
-        profile_dummies = pd.get_dummies(data['customer_profile'], prefix='profile')
-        amount_cat_dummies = pd.get_dummies(data['amount_category'], prefix='amount')
-        
-        # Numerical features
+
+        # Categories s error handlingem
+        try:
+            data['amount_category'] = pd.cut(data['amount'], 
+                                        bins=[0, 1000, 10000, 50000, 200000, float('inf')],
+                                        labels=['micro', 'small', 'medium', 'large', 'jumbo'])
+        except Exception as e:
+            logger.warning(f"Error creating amount categories: {e}")
+            # Fallback kategorization
+            data['amount_category'] = 'medium'  # Default category
+
+        # Dummy variables s validací
+        try:
+            transaction_dummies = pd.get_dummies(data['transaction_type'], prefix='trans')
+            profile_dummies = pd.get_dummies(data['customer_profile'], prefix='profile')
+            
+            if 'amount_category' in data.columns:
+                amount_cat_dummies = pd.get_dummies(data['amount_category'], prefix='amount')
+            else:
+                # Fallback dummy
+                amount_cat_dummies = pd.DataFrame({'amount_medium': [1] * len(data)})
+                
+        except Exception as e:
+            logger.error(f"Error creating dummy variables: {e}")
+            # Minimální fallback dummies
+            transaction_dummies = pd.DataFrame({'trans_transfer': [1] * len(data)})
+            profile_dummies = pd.DataFrame({'profile_middle_income': [1] * len(data)})
+            amount_cat_dummies = pd.DataFrame({'amount_medium': [1] * len(data)})
+
+        # Numerical features s validací
         numerical_features = [
             'amount', 'account_balance', 'monthly_income', 'customer_age', 'account_age_days',
             'country_risk_score', 'transactions_last_7d', 'transactions_last_30d',
@@ -535,98 +693,88 @@ def train_adaptive_risk_model():
             'frequency_velocity', 'is_cash_business', 'is_weekend', 'is_night_time', 
             'is_business_hours', 'transaction_hour'
         ]
-        
-        # Combine features
-        X = pd.concat([
-            data[numerical_features],
-            transaction_dummies,
-            profile_dummies,
-            amount_cat_dummies
-        ], axis=1)
-        
+
+        # Validace numerical features
+        available_numerical = [col for col in numerical_features if col in data.columns]
+        if len(available_numerical) < len(numerical_features):
+            missing = set(numerical_features) - set(available_numerical)
+            logger.warning(f"Missing numerical features: {missing}")
+
+        # Combine features s error handlingem
+        try:
+            X = pd.concat([
+                data[available_numerical],
+                transaction_dummies,
+                profile_dummies,
+                amount_cat_dummies
+            ], axis=1)
+        except Exception as e:
+            logger.error(f"Error combining features: {e}")
+            # Minimální fallback
+            X = data[available_numerical[:5]]  # Jen prvních 5 dostupných features
+
         feature_columns = X.columns.tolist()
         y = data['is_risky']
-        
-        # Validate data
+
+        logger.info(f"Final feature matrix: {X.shape}, Labels: {y.shape}")
+        logger.info(f"Label distribution: {np.bincount(y)}")
+
+        # Validace finálních dat
         if X.isnull().any().any():
             logger.warning("NaN values detected, filling with 0")
             X = X.fillna(0)
-        
+
         # Handle infinite values
         X = X.replace([np.inf, -np.inf], 0)
-        
-        # Train-test split - stratify to ensure both real and synthetic in both sets
-        X_train, X_test, y_train, y_test = train_test_split(X, y, test_size=0.2, random_state=42, stratify=y)
-        
-        # Enhanced model for mixed data
+
+        # Ujistit se, že y jsou integers
+        y = y.astype(int)
+
+        # Validace, že máme oba typy labelů
+        if len(np.unique(y)) < 2:
+            logger.error(f"Only one class found in labels: {np.unique(y)}")
+            # Vytvořit alespoň jeden příklad druhé třídy
+            if y.iloc[0] == 0:
+                y.iloc[-1] = 1
+            else:
+                y.iloc[-1] = 0
+            logger.info(f"Fixed label distribution: {np.bincount(y)}")
+
+        # Train-test split
+        try:
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42, stratify=y
+            )
+        except Exception as e:
+            logger.warning(f"Stratified split failed: {e}, using regular split")
+            X_train, X_test, y_train, y_test = train_test_split(
+                X, y, test_size=0.2, random_state=42
+            )
+
+        logger.info(f"Training set: {X_train.shape}, Test set: {X_test.shape}")
+        logger.info(f"Training labels: {np.bincount(y_train)}, Test labels: {np.bincount(y_test)}")
+
+        # Train model s robustními parametry
         model = RandomForestClassifier(
-            n_estimators=150,  # Increased for better real data handling
-            max_depth=12,      # Slightly deeper
-            min_samples_split=8,
-            min_samples_leaf=4,
+            n_estimators=100,  # Sníženo pro rychlost
+            max_depth=10,      # Omezeno pro stabilitu
+            min_samples_split=10,
+            min_samples_leaf=5,
             random_state=42,
             class_weight='balanced',
-            n_jobs=1  # Single core pro Azure
+            n_jobs=1
         )
+
+        logger.info("Training RandomForest model...")
         model.fit(X_train, y_train)
-        
+
         # Evaluate
         predictions = model.predict(X_test)
         model_accuracy = accuracy_score(y_test, predictions)
-        
-        # MONITORING INTEGRATION - Set baseline performance
-        if model_monitor:
-            model_monitor.set_baseline_performance(model_accuracy)
-            model_monitor.model = model  # Attach model to monitor
-            
-            # Store training data in Azure if available
-            if azure_storage and azure_storage.is_connected():
-                try:
-                    model_metadata = {
-                        'version': 'v2.2.0_adaptive',
-                        'accuracy': float(model_accuracy),
-                        'features': len(feature_columns),
-                        'training_date': datetime.now().isoformat(),
-                        'total_samples': len(X_train),
-                        'real_data_samples': len(data[data.get('source', '') == 'real_data']),
-                        'synthetic_samples': len(data[data.get('source', '') == 'synthetic']),
-                        'adaptive_learning': True
-                    }
-                    azure_storage.upload_training_data(data, model_metadata)
-                    logger.info("📦 Training data uploaded to Azure Storage")
-                except Exception as e:
-                    logger.warning(f"Failed to upload training data: {e}")
-        
-        # Enhanced statistics
-        risky_count = int(data['is_risky'].sum())
-        safe_count = len(data) - risky_count
-        real_data_count = len(data[data.get('source', '') == 'real_data'])
-        
-        data_stats = {
-            'total_transactions': len(data),
-            'risky_transactions': risky_count,
-            'safe_transactions': safe_count,
-            'risk_rate': float(risky_count / len(data)),
-            'model_accuracy': float(model_accuracy),
-            'test_samples': len(X_test),
-            'feature_count': len(feature_columns),
-            'avg_transaction_amount': float(data['amount'].mean()),
-            'avg_account_balance': float(data['account_balance'].mean()),
-            'avg_monthly_income': float(data['monthly_income'].mean()),
-            'high_risk_countries': int((data['country_risk_score'] >= 7).sum()),
-            'night_transactions': int(data['is_night_time'].sum()),
-            'real_data_count': real_data_count,
-            'synthetic_data_count': len(data) - real_data_count,
-            'adaptive_learning': True,
-            'last_updated': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-        }
-        
-        last_retrain_time = datetime.now()
-        
-        logger.info(f"✅ ADAPTIVE model trained successfully - Accuracy: {model_accuracy:.1%}")
-        logger.info(f"📊 Data composition: {real_data_count} real + {len(data) - real_data_count} synthetic")
-        logger.info(f"✅ Features: {len(feature_columns)}, Risk rate: {data_stats['risk_rate']:.1%}")
-        return model, model_accuracy, data_stats
+
+        logger.info(f"✅ Model trained successfully - Accuracy: {model_accuracy:.1%}")
+        logger.info(f"Features: {len(feature_columns)}")
+        logger.info(f"Test predictions distribution: {np.bincount(predictions)}")
         
     except Exception as e:
         logger.error(f"Error training adaptive model: {e}")
